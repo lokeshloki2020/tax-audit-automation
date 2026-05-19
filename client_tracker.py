@@ -425,3 +425,90 @@ Lokesh"""
 with followup_btn_col:
     if st.button("✉️", help="Open follow-up message"):
         show_followup_message()
+        # -------------------------------------------------
+# WORKING PAPER TRACKER EDITOR
+# -------------------------------------------------
+
+st.subheader("🗂️ Tax Audit Working Papers Tracker")
+
+if len(df) > 0 and selected_client:
+
+    selected_row = df[df["Client Name"] == selected_client].iloc[0]
+    selected_ay = selected_row["AY"]
+
+    wp_path = f"clients/{selected_client}/AY {selected_ay}/working_papers_tracker.xlsx"
+
+    if os.path.exists(wp_path):
+
+        wp_df = pd.read_excel(wp_path)
+
+        wp_df["Working Paper"] = wp_df["Working Paper"].astype(str)
+        wp_df["Clause Reference"] = wp_df["Clause Reference"].astype(str)
+        wp_df["Status"] = wp_df["Status"].astype(str)
+        wp_df["Prepared By"] = wp_df["Prepared By"].astype(str)
+        wp_df["Reviewed By"] = wp_df["Reviewed By"].astype(str)
+        wp_df["Remarks"] = wp_df["Remarks"].astype(str)
+
+        wp_df = wp_df.replace("nan", "")
+
+        st.write(f"### Working Papers for {selected_client} - AY {selected_ay}")
+
+        edited_wp_df = st.data_editor(
+            wp_df,
+            use_container_width=True,
+            num_rows="fixed",
+            column_config={
+                "Status": st.column_config.SelectboxColumn(
+                    "Status",
+                    options=[
+                        "Pending",
+                        "In Progress",
+                        "Completed",
+                        "Under Review"
+                    ],
+                    required=True
+                ),
+                "Prepared By": st.column_config.TextColumn(
+                    "Prepared By"
+                ),
+                "Reviewed By": st.column_config.TextColumn(
+                    "Reviewed By"
+                ),
+                "Remarks": st.column_config.TextColumn(
+                    "Remarks"
+                )
+            },
+            disabled=[
+                "Working Paper",
+                "Clause Reference"
+            ]
+        )
+
+        if st.button("💾 Save Working Papers"):
+
+            edited_wp_df.to_excel(wp_path, index=False)
+
+            total_wp = len(edited_wp_df)
+
+            completed_wp = len(
+                edited_wp_df[
+                    edited_wp_df["Status"] == "Completed"
+                ]
+            )
+
+            wp_completion = round(
+                (completed_wp / total_wp) * 100,
+                2
+            )
+
+            st.success(
+                f"✅ Working Papers Updated! Completion: {wp_completion}%"
+            )
+
+            st.rerun()
+
+    else:
+        st.warning("Working paper tracker file not found.")
+
+else:
+    st.info("Please select a client.")
