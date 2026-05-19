@@ -8,24 +8,51 @@ from utils.common import load_clients
 def show_audit_procedures():
     st.subheader("🔍 Audit Procedures")
 
-    procedure = st.selectbox(
-        "Select Audit Procedure",
+    procedure = st.sidebar.radio(
+        "Audit Procedure Menu",
         [
-            "Trial Balance Verification",
-            "Depreciation Schedule",
-            "TDS Reconciliation",
-            "GST Reconciliation",
-            "Clause 44 Working",
-            "Cash Payment Verification",
-            "Loan Verification",
-            "Related Party Transactions",
-            "Quantitative Details",
-            "Stock Verification"
+            "📘 Trial Balance Verification",
+            "📉 Depreciation Schedule",
+            "🧾 TDS Reconciliation",
+            "🧮 GST Reconciliation",
+            "📑 Clause 44 Working",
+            "💵 Cash Payment Verification",
+            "🏦 Loan Verification",
+            "👥 Related Party Transactions",
+            "📦 Quantitative Details",
+            "🏬 Stock Verification"
         ]
     )
 
-    if procedure == "Trial Balance Verification":
+    if procedure == "📘 Trial Balance Verification":
         trial_balance_verification()
+
+    elif procedure == "📉 Depreciation Schedule":
+        st.info("Depreciation Schedule automation will be built next.")
+
+    elif procedure == "🧾 TDS Reconciliation":
+        st.info("TDS Reconciliation automation will be built next.")
+
+    elif procedure == "🧮 GST Reconciliation":
+        st.info("GST Reconciliation automation will be built next.")
+
+    elif procedure == "📑 Clause 44 Working":
+        st.info("Clause 44 automation will be built next.")
+
+    elif procedure == "💵 Cash Payment Verification":
+        st.info("Cash Payment Verification automation will be built next.")
+
+    elif procedure == "🏦 Loan Verification":
+        st.info("Loan Verification automation will be built next.")
+
+    elif procedure == "👥 Related Party Transactions":
+        st.info("Related Party Transactions automation will be built next.")
+
+    elif procedure == "📦 Quantitative Details":
+        st.info("Quantitative Details automation will be built next.")
+
+    elif procedure == "🏬 Stock Verification":
+        st.info("Stock Verification automation will be built next.")
 
 
 def trial_balance_verification():
