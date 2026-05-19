@@ -2,86 +2,97 @@ import streamlit as st
 import pandas as pd
 import os
 
-# File Path
 FILE_PATH = "data/clients.xlsx"
 
-# Page Config
-st.set_page_config(
-    page_title="Tax Audit Client Tracker",
-    page_icon="📊",
-    layout="wide"
-)
-
-# Dashboard Title
+st.set_page_config(page_title="Tax Audit Client Tracker", page_icon="📊", layout="wide")
 st.title("📊 Tax Audit Client Tracker")
 
-# Load Existing Excel Data
+COLUMNS = [
+    "Client Name", "PAN", "GSTIN", "AY",
+    "Document Status", "Audit Status",
+    "3CD/3CA Filing Status", "ITR Filing Status",
+    "Assigned Staff", "Checklist Completion %"
+]
+
+def get_document_status(percentage):
+    if percentage == 0:
+        return "Pending"
+    elif percentage == 100:
+        return "Received"
+    else:
+        return "Partially Received"
+
+# Load data
 if os.path.exists(FILE_PATH):
     df = pd.read_excel(FILE_PATH)
 else:
-    df = pd.DataFrame(columns=[
-        "Client Name",
-        "PAN",
-        "GSTIN",
-        "AY",
-        "Audit Status",
-        "Docs Status",
-        "Filing Status",
-        "Assigned Staff",
-        "Checklist Completion %"
-    ])
+    df = pd.DataFrame(columns=COLUMNS)
 
-# Sidebar Form
+# Old column migration
+if "Docs Status" in df.columns and "Document Status" not in df.columns:
+    df["Document Status"] = df["Docs Status"]
+
+if "Filing Status" in df.columns:
+    if "3CD/3CA Filing Status" not in df.columns:
+        df["3CD/3CA Filing Status"] = df["Filing Status"].replace("Pending", "Not Filed")
+    if "ITR Filing Status" not in df.columns:
+        df["ITR Filing Status"] = df["Filing Status"].replace("Pending", "Not Filed")
+
+for col in COLUMNS:
+    if col not in df.columns:
+        if col == "Checklist Completion %":
+            df[col] = 0
+        elif col == "Document Status":
+            df[col] = "Pending"
+        elif col == "Audit Status":
+            df[col] = "Pending"
+        elif col in ["3CD/3CA Filing Status", "ITR Filing Status"]:
+            df[col] = "Not Filed"
+        else:
+            df[col] = ""
+
+df = df[COLUMNS]
+
+# Ensure document status is always based on checklist %
+df["Checklist Completion %"] = df["Checklist Completion %"].fillna(0)
+df["Document Status"] = df["Checklist Completion %"].apply(get_document_status)
+
+df.to_excel(FILE_PATH, index=False)
+
+# Sidebar Add Client
 st.sidebar.header("➕ Add New Client")
 
 client_name = st.sidebar.text_input("Client Name")
 pan = st.sidebar.text_input("PAN")
 gstin = st.sidebar.text_input("GSTIN")
 ay = st.sidebar.text_input("Assessment Year")
+assigned_staff = st.sidebar.text_input("Assigned Staff")
 
 audit_status = st.sidebar.selectbox(
     "Audit Status",
     ["Pending", "In Progress", "Completed"]
 )
 
-docs_status = st.sidebar.selectbox(
-    "Documents Status",
-    ["Pending", "Partially Received", "Received"]
-)
-
-filing_status = st.sidebar.selectbox(
-    "Filing Status",
-    ["Pending", "Filed"]
-)
-
-assigned_staff = st.sidebar.text_input("Assigned Staff")
-
-# Add Client Button
 if st.sidebar.button("Add Client"):
-
-    # Validation
     if client_name == "" or pan == "":
         st.sidebar.error("Client Name and PAN are mandatory!")
-
     else:
         new_client = {
             "Client Name": client_name,
             "PAN": pan,
             "GSTIN": gstin,
             "AY": ay,
+            "Document Status": "Pending",
             "Audit Status": audit_status,
-            "Docs Status": docs_status,
-            "Filing Status": filing_status,
+            "3CD/3CA Filing Status": "Not Filed",
+            "ITR Filing Status": "Not Filed",
             "Assigned Staff": assigned_staff,
             "Checklist Completion %": 0
         }
 
-        # Append Data
         df = pd.concat([df, pd.DataFrame([new_client])], ignore_index=True)
-
-        # Save Back to Excel
         df.to_excel(FILE_PATH, index=False)
-                # Create client folder structure
+
         base_path = f"clients/{client_name}/AY {ay}"
 
         folders = [
@@ -96,8 +107,6 @@ if st.sidebar.button("Add Client"):
 
         for folder in folders:
             os.makedirs(f"{base_path}/{folder}", exist_ok=True)
-                    # Create document checklist
-        checklist_path = f"{base_path}/document_checklist.xlsx"
 
         checklist_items = [
             "Bank Statements",
@@ -128,11 +137,12 @@ if st.sidebar.button("Add Client"):
             "Remarks": [""] * len(checklist_items)
         })
 
-        checklist_df.to_excel(checklist_path, index=False)
+        checklist_df.to_excel(f"{base_path}/document_checklist.xlsx", index=False)
 
         st.sidebar.success("✅ Client Added, Folders & Checklist Created!")
+        st.rerun()
 
-# Summary Metrics
+# Summary
 st.subheader("📌 Summary")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -141,26 +151,143 @@ with col1:
     st.metric("Total Clients", len(df))
 
 with col2:
-    pending_audit = len(df[df["Audit Status"] == "Pending"])
-    st.metric("Pending Audits", pending_audit)
+    st.metric("Documents Pending", len(df[df["Document Status"] != "Received"]))
 
 with col3:
-    completed_audit = len(df[df["Audit Status"] == "Completed"])
-    st.metric("Completed Audits", completed_audit)
+    st.metric("Audit Pending", len(df[df["Audit Status"] != "Completed"]))
 
 with col4:
-    filed_returns = len(df[df["Filing Status"] == "Filed"])
-    st.metric("Filed Returns", filed_returns)
+    st.metric("ITR Not Filed", len(df[df["ITR Filing Status"] == "Not Filed"]))
 
-# Display Table
+# Search & Filter
+st.subheader("🔎 Search & Filter Clients")
+
+client_list = sorted(df["Client Name"].dropna().unique().tolist())
+
+selected_client = st.selectbox(
+    "Search / Select Client",
+    client_list,
+    index=0 if len(client_list) > 0 else None,
+    placeholder="Search client name..."
+)
+
+if selected_client:
+    filtered_df = df[df["Client Name"] == selected_client].copy()
+else:
+    filtered_df = df.copy()
+
 st.subheader("📋 Client Database")
 
-st.dataframe(df, use_container_width=True)
+editable_df = filtered_df.reset_index()
 
-# Download Option
+edited_clients = st.data_editor(
+    editable_df,
+    use_container_width=True,
+    num_rows="fixed",
+    column_config={
+        "Audit Status": st.column_config.SelectboxColumn(
+            "Audit Status",
+            options=["Pending", "In Progress", "Completed"]
+        ),
+        "3CD/3CA Filing Status": st.column_config.SelectboxColumn(
+            "3CD/3CA Filing Status",
+            options=["Not Filed", "Filed"]
+        ),
+        "ITR Filing Status": st.column_config.SelectboxColumn(
+            "ITR Filing Status",
+            options=["Not Filed", "Filed"]
+        )
+    },
+    disabled=[
+        "index",
+        "Client Name",
+        "PAN",
+        "GSTIN",
+        "AY",
+        "Document Status",
+        "Assigned Staff",
+        "Checklist Completion %"
+    ]
+)
+
+if st.button("💾 Save Client Status Changes"):
+    for _, row in edited_clients.iterrows():
+        original_index = row["index"]
+
+        df.loc[original_index, "Audit Status"] = row["Audit Status"]
+        df.loc[original_index, "3CD/3CA Filing Status"] = row["3CD/3CA Filing Status"]
+        df.loc[original_index, "ITR Filing Status"] = row["ITR Filing Status"]
+
+    df.to_excel(FILE_PATH, index=False)
+
+    st.success("✅ Client status updated successfully!")
+    st.rerun()
+
 st.download_button(
-    label="⬇ Download Client Data",
-    data=df.to_csv(index=False),
-    file_name="client_data.csv",
+    label="⬇ Download Selected Client Data",
+    data=filtered_df.to_csv(index=False),
+    file_name="selected_client_data.csv",
     mime="text/csv"
 )
+
+# Checklist Editor
+st.subheader("📂 Client Document Checklist Editor")
+
+if len(df) > 0 and selected_client:
+    selected_row = df[df["Client Name"] == selected_client].iloc[0]
+    selected_ay = selected_row["AY"]
+
+    checklist_path = f"clients/{selected_client}/AY {selected_ay}/document_checklist.xlsx"
+
+    if os.path.exists(checklist_path):
+        checklist_df = pd.read_excel(checklist_path)
+
+        checklist_df["Document Name"] = checklist_df["Document Name"].astype(str)
+        checklist_df["Status"] = checklist_df["Status"].astype(str)
+        checklist_df["Remarks"] = checklist_df["Remarks"].astype(str)
+        checklist_df["Remarks"] = checklist_df["Remarks"].replace("nan", "")
+
+        st.write(f"### Checklist for {selected_client} - AY {selected_ay}")
+
+        edited_checklist = st.data_editor(
+            checklist_df,
+            use_container_width=True,
+            num_rows="fixed",
+            column_config={
+                "Status": st.column_config.SelectboxColumn(
+                    "Status",
+                    options=["Pending", "Received", "Not Applicable"],
+                    required=True
+                ),
+                "Remarks": st.column_config.TextColumn("Remarks")
+            },
+            disabled=["Document Name"]
+        )
+
+        if st.button("💾 Save Checklist"):
+            edited_checklist.to_excel(checklist_path, index=False)
+
+            total_docs = len(edited_checklist)
+            completed_docs = len(
+                edited_checklist[
+                    edited_checklist["Status"].isin(["Received", "Not Applicable"])
+                ]
+            )
+
+            completion_percentage = round((completed_docs / total_docs) * 100, 2)
+            document_status = get_document_status(completion_percentage)
+
+            df.loc[df["Client Name"] == selected_client, "Checklist Completion %"] = completion_percentage
+            df.loc[df["Client Name"] == selected_client, "Document Status"] = document_status
+
+            df.to_excel(FILE_PATH, index=False)
+
+            st.success(
+                f"✅ Checklist saved! Document Status: {document_status}, Completion: {completion_percentage}%"
+            )
+            st.rerun()
+
+    else:
+        st.warning("Checklist file not found for this client.")
+else:
+    st.info("Please select a client.")
