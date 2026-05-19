@@ -512,3 +512,59 @@ if len(df) > 0 and selected_client:
 
 else:
     st.info("Please select a client.")
+    # -------------------------------------------------
+# WORKING PAPER COMPLETION DASHBOARD
+# -------------------------------------------------
+
+st.subheader("📊 Working Paper Completion Dashboard")
+
+if len(df) > 0 and selected_client:
+
+    selected_row = df[df["Client Name"] == selected_client].iloc[0]
+    selected_ay = selected_row["AY"]
+
+    wp_path = f"clients/{selected_client}/AY {selected_ay}/working_papers_tracker.xlsx"
+
+    if os.path.exists(wp_path):
+
+        wp_report_df = pd.read_excel(wp_path)
+        wp_report_df["Status"] = wp_report_df["Status"].astype(str)
+
+        total_wp = len(wp_report_df)
+        completed_wp = len(wp_report_df[wp_report_df["Status"] == "Completed"])
+        pending_wp = len(wp_report_df[wp_report_df["Status"] == "Pending"])
+        in_progress_wp = len(wp_report_df[wp_report_df["Status"] == "In Progress"])
+        under_review_wp = len(wp_report_df[wp_report_df["Status"] == "Under Review"])
+
+        wp_completion_percentage = round((completed_wp / total_wp) * 100, 2)
+
+        wp_col1, wp_col2, wp_col3, wp_col4, wp_col5 = st.columns(5)
+
+        with wp_col1:
+            st.metric("Total WPs", total_wp)
+
+        with wp_col2:
+            st.metric("Completed", completed_wp)
+
+        with wp_col3:
+            st.metric("Pending", pending_wp)
+
+        with wp_col4:
+            st.metric("In Progress", in_progress_wp)
+
+        with wp_col5:
+            st.metric("Completion %", wp_completion_percentage)
+
+        st.write("### Pending / Incomplete Working Papers")
+
+        incomplete_wp_df = wp_report_df[
+            wp_report_df["Status"].isin(["Pending", "In Progress", "Under Review"])
+        ]
+
+        st.dataframe(incomplete_wp_df, use_container_width=True)
+
+    else:
+        st.warning("Working paper tracker file not found for dashboard.")
+
+else:
+    st.info("Select a client to view working paper completion dashboard.")
