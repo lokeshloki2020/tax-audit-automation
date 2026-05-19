@@ -26,16 +26,6 @@ st.markdown("""
 .hero p {
     font-size: 17px;
 }
-.card {
-    padding: 20px;
-    border-radius: 18px;
-    background: #1e1e2f;
-    border: 1px solid #3b3b52;
-    text-align: center;
-}
-.card h3 {
-    margin-bottom: 8px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,11 +82,6 @@ def show_home():
     </div>
     """, unsafe_allow_html=True)
 
-    actual_due_date = st.date_input(
-        "Tax Audit Applicable Due Date",
-        value=date(today.year, 9, 30)
-    )
-
     preferred_due_date = st.date_input(
         "Preferred Internal Due Date",
         value=date(today.year, 9, 15)
@@ -104,15 +89,12 @@ def show_home():
 
     remaining_days = (preferred_due_date - today).days
 
-    d1, d2, d3 = st.columns(3)
+    due_col1, due_col2 = st.columns(2)
 
-    with d1:
-        st.metric("Actual Due Date", actual_due_date.strftime("%d-%m-%Y"))
-
-    with d2:
+    with due_col1:
         st.metric("Preferred Due Date", preferred_due_date.strftime("%d-%m-%Y"))
 
-    with d3:
+    with due_col2:
         st.metric("Days Remaining", remaining_days)
 
     st.subheader("📌 Progress Cards")
@@ -161,18 +143,6 @@ def show_home():
 
             progress_df = pd.DataFrame(progress_rows)
             st.dataframe(progress_df, use_container_width=True)
-
-            selected_client = st.selectbox(
-                "Select Client to View Progress Bar",
-                progress_df["Client Name"].tolist()
-            )
-
-            selected_progress = progress_df[
-                progress_df["Client Name"] == selected_client
-            ]["Overall Audit Progress %"].iloc[0]
-
-            st.progress(selected_progress / 100)
-            st.write(f"**{selected_client}: {selected_progress}% completed**")
         else:
             st.info("No clients available.")
 
