@@ -137,6 +137,39 @@ if st.sidebar.button("➕ Add Client"):
         })
 
         checklist_df.to_excel(f"{base_path}/document_checklist.xlsx", index=False)
+                # -------------------------------------------------
+        # CREATE WORKING PAPERS TRACKER
+        # -------------------------------------------------
+
+        working_papers = [
+            ["Trial Balance Verification", "General"],
+            ["Depreciation Schedule", "Clause 18"],
+            ["TDS Reconciliation", "Clause 34"],
+            ["GST Reconciliation", "Clause 44"],
+            ["Clause 44 Working", "Clause 44"],
+            ["Cash Payment Verification", "Clause 21(d)"],
+            ["Loan Verification", "Clause 31"],
+            ["Related Party Transactions", "Clause 23"],
+            ["Quantitative Details", "Clause 35"],
+            ["Stock Verification", "Clause 35"],
+            ["Form 26AS Reconciliation", "General"],
+            ["AIS/TIS Verification", "General"]
+        ]
+
+        wp_df = pd.DataFrame(
+            working_papers,
+            columns=["Working Paper", "Clause Reference"]
+        )
+
+        wp_df["Status"] = "Pending"
+        wp_df["Prepared By"] = ""
+        wp_df["Reviewed By"] = ""
+        wp_df["Remarks"] = ""
+
+        wp_df.to_excel(
+            f"{base_path}/working_papers_tracker.xlsx",
+            index=False
+        )
 
         st.sidebar.success("✅ Client Added, Folders & Checklist Created!")
         st.rerun()
