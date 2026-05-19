@@ -27,7 +27,8 @@ else:
         "Audit Status",
         "Docs Status",
         "Filing Status",
-        "Assigned Staff"
+        "Assigned Staff",
+        "Checklist Completion %"
     ])
 
 # Sidebar Form
@@ -71,7 +72,8 @@ if st.sidebar.button("Add Client"):
             "Audit Status": audit_status,
             "Docs Status": docs_status,
             "Filing Status": filing_status,
-            "Assigned Staff": assigned_staff
+            "Assigned Staff": assigned_staff,
+            "Checklist Completion %": 0
         }
 
         # Append Data
