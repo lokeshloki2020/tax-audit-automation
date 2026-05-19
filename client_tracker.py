@@ -291,3 +291,58 @@ if len(df) > 0 and selected_client:
         st.warning("Checklist file not found for this client.")
 else:
     st.info("Please select a client.")
+    # -------------------------------------------------
+# PENDING DOCUMENTS REPORT SECTION
+# -------------------------------------------------
+
+st.subheader("📑 Pending Documents Report")
+
+if len(df) > 0 and selected_client:
+    selected_row = df[df["Client Name"] == selected_client].iloc[0]
+    selected_ay = selected_row["AY"]
+
+    checklist_path = f"clients/{selected_client}/AY {selected_ay}/document_checklist.xlsx"
+
+    if os.path.exists(checklist_path):
+        report_df = pd.read_excel(checklist_path)
+
+        report_df["Status"] = report_df["Status"].astype(str)
+
+        total_documents = len(report_df)
+        received_documents = len(
+            report_df[report_df["Status"].isin(["Received", "Not Applicable"])]
+        )
+        pending_documents = len(report_df[report_df["Status"] == "Pending"])
+
+        completion_percentage = round((received_documents / total_documents) * 100, 2)
+
+        r1, r2, r3, r4 = st.columns(4)
+
+        with r1:
+            st.metric("Total Documents", total_documents)
+
+        with r2:
+            st.metric("Received / N.A.", received_documents)
+
+        with r3:
+            st.metric("Pending Documents", pending_documents)
+
+        with r4:
+            st.metric("Completion %", completion_percentage)
+
+        pending_df = report_df[report_df["Status"] == "Pending"]
+
+        st.write("### Pending Document List")
+        st.dataframe(pending_df, use_container_width=True)
+
+        st.download_button(
+            label="⬇ Download Pending Documents Report",
+            data=pending_df.to_csv(index=False),
+            file_name=f"{selected_client}_pending_documents.csv",
+            mime="text/csv"
+        )
+
+    else:
+        st.warning("Checklist file not found for pending report.")
+else:
+    st.info("Select a client to view pending documents report.")
