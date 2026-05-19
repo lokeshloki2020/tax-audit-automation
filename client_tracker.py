@@ -79,8 +79,23 @@ if st.sidebar.button("Add Client"):
 
         # Save Back to Excel
         df.to_excel(FILE_PATH, index=False)
+                # Create client folder structure
+        base_path = f"clients/{client_name}/AY {ay}"
 
-        st.sidebar.success("✅ Client Added Successfully!")
+        folders = [
+            "Bank Statements",
+            "GST Returns",
+            "TDS",
+            "Financial Statements",
+            "Audit Working Papers",
+            "Form 3CD",
+            "Final Filing"
+        ]
+
+        for folder in folders:
+            os.makedirs(f"{base_path}/{folder}", exist_ok=True)
+
+        st.sidebar.success("✅ Client Added & Folder Structure Created!")
 
 # Summary Metrics
 st.subheader("📌 Summary")
