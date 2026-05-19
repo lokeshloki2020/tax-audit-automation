@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from utils.common import load_clients
+from modules.clause_library import CLAUSE_LIBRARY
 
 
 def get_selected_client():
@@ -49,7 +50,7 @@ def read_excel_file(file_path):
 def generic_upload_preview(folder_path, upload_label, saved_file_name, uploader_key):
     uploaded_file = st.file_uploader(
         upload_label,
-        type=["xlsx", "xls", "csv"],
+        type=["xlsx", "xls"],
         key=uploader_key
     )
 
@@ -73,6 +74,7 @@ def show_audit_procedures():
     procedure = st.sidebar.radio(
         "Audit Procedure Menu",
         [
+            "📚 Clause-wise Procedure Library",
             "📘 Trial Balance Verification",
             "📉 Depreciation Schedule",
             "🧾 TDS Reconciliation",
@@ -86,7 +88,9 @@ def show_audit_procedures():
         ]
     )
 
-    if procedure == "📘 Trial Balance Verification":
+    if procedure == "📚 Clause-wise Procedure Library":
+        clause_wise_library()
+    elif procedure == "📘 Trial Balance Verification":
         trial_balance_verification()
     elif procedure == "📉 Depreciation Schedule":
         depreciation_schedule()
@@ -106,6 +110,47 @@ def show_audit_procedures():
         quantitative_details()
     elif procedure == "🏬 Stock Verification":
         stock_verification()
+
+
+def clause_wise_library():
+    st.subheader("📚 Clause-wise Audit Procedure Library")
+
+    clause_df = pd.DataFrame(CLAUSE_LIBRARY)
+
+    st.dataframe(
+        clause_df[["Clause", "Title", "Section", "Status"]],
+        use_container_width=True
+    )
+
+    selected_clause = st.selectbox(
+        "Select Clause",
+        clause_df["Clause"] + " - " + clause_df["Title"]
+    )
+
+    selected_index = clause_df[
+        (clause_df["Clause"] + " - " + clause_df["Title"]) == selected_clause
+    ].index[0]
+
+    clause = CLAUSE_LIBRARY[selected_index]
+
+    st.write("### Clause Details")
+    st.write(f"**Clause:** {clause['Clause']}")
+    st.write(f"**Title:** {clause['Title']}")
+    st.write(f"**Section:** {clause['Section']}")
+    st.write(f"**Purpose:** {clause['Purpose']}")
+    st.write(f"**Status:** {clause['Status']}")
+
+    st.write("### Required Files")
+    for item in clause["Required Files"]:
+        st.write(f"- {item}")
+
+    st.write("### Audit Procedures")
+    for item in clause["Audit Procedures"]:
+        st.write(f"- {item}")
+
+    st.write("### Automation Scope")
+    for item in clause["Automation Scope"]:
+        st.write(f"- {item}")
 
 
 def trial_balance_verification():
@@ -191,13 +236,11 @@ def depreciation_schedule():
 
     if dep_df is not None:
         asset_col = st.selectbox("Select Asset / Block Column", dep_df.columns)
-        wdv_col = st.selectbox("Select WDV / Opening Balance Column", dep_df.columns)
         addition_col = st.selectbox("Select Additions Column", dep_df.columns)
         dep_col = st.selectbox("Select Depreciation Column", dep_df.columns)
 
         if st.button("🔍 Analyze Depreciation"):
             result_df = dep_df.copy()
-
             result_df["Audit Observation"] = ""
 
             result_df.loc[
@@ -364,7 +407,6 @@ def cash_payment_verification():
     )
 
     if cash_df is not None:
-        date_col = st.selectbox("Select Date Column", cash_df.columns)
         party_col = st.selectbox("Select Party / Ledger Column", cash_df.columns)
         amount_col = st.selectbox("Select Amount Column", cash_df.columns)
         mode_col = st.selectbox("Select Payment Mode Column", cash_df.columns)
@@ -403,7 +445,6 @@ def loan_verification():
     )
 
     if loan_df is not None:
-        lender_col = st.selectbox("Select Lender Column", loan_df.columns)
         opening_col = st.selectbox("Select Opening Balance Column", loan_df.columns)
         received_col = st.selectbox("Select Loan Received Column", loan_df.columns)
         repaid_col = st.selectbox("Select Loan Repaid Column", loan_df.columns)
@@ -441,11 +482,8 @@ def related_party_transactions():
 
     if transaction_df is not None:
         party_col = st.selectbox("Select Party Name Column", transaction_df.columns)
-        amount_col = st.selectbox("Select Amount Column", transaction_df.columns)
 
-        related_parties_text = st.text_area(
-            "Enter related party names, one per line"
-        )
+        related_parties_text = st.text_area("Enter related party names, one per line")
 
         if st.button("🔍 Detect Related Party Transactions"):
             related_parties = [
@@ -485,7 +523,6 @@ def quantitative_details():
     )
 
     if qty_df is not None:
-        item_col = st.selectbox("Select Item Column", qty_df.columns)
         opening_col = st.selectbox("Select Opening Qty Column", qty_df.columns)
         purchase_col = st.selectbox("Select Purchase Qty Column", qty_df.columns)
         sales_col = st.selectbox("Select Sales Qty Column", qty_df.columns)
@@ -522,7 +559,6 @@ def stock_verification():
     )
 
     if stock_df is not None:
-        item_col = st.selectbox("Select Item Column", stock_df.columns)
         qty_col = st.selectbox("Select Quantity Column", stock_df.columns)
         rate_col = st.selectbox("Select Rate Column", stock_df.columns)
         value_col = st.selectbox("Select Value Column", stock_df.columns)
