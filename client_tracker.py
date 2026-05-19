@@ -94,8 +94,41 @@ if st.sidebar.button("Add Client"):
 
         for folder in folders:
             os.makedirs(f"{base_path}/{folder}", exist_ok=True)
+                    # Create document checklist
+        checklist_path = f"{base_path}/document_checklist.xlsx"
 
-        st.sidebar.success("✅ Client Added & Folder Structure Created!")
+        checklist_items = [
+            "Bank Statements",
+            "Sales Register",
+            "Purchase Register",
+            "GST Returns - GSTR-1",
+            "GST Returns - GSTR-3B",
+            "GSTR-2B",
+            "Trial Balance",
+            "Profit & Loss Account",
+            "Balance Sheet",
+            "Fixed Asset Register",
+            "Loan Statements",
+            "TDS Returns",
+            "Form 26AS",
+            "AIS/TIS",
+            "Previous Year ITR",
+            "Previous Year Tax Audit Report",
+            "Stock Details",
+            "Cash Book",
+            "Debtors List",
+            "Creditors List"
+        ]
+
+        checklist_df = pd.DataFrame({
+            "Document Name": checklist_items,
+            "Status": ["Pending"] * len(checklist_items),
+            "Remarks": [""] * len(checklist_items)
+        })
+
+        checklist_df.to_excel(checklist_path, index=False)
+
+        st.sidebar.success("✅ Client Added, Folders & Checklist Created!")
 
 # Summary Metrics
 st.subheader("📌 Summary")
