@@ -14,6 +14,7 @@ COLUMNS = [
     "Assigned Staff", "Checklist Completion %"
 ]
 
+
 def get_document_status(percentage):
     if percentage == 0:
         return "Pending"
@@ -21,6 +22,7 @@ def get_document_status(percentage):
         return "Received"
     else:
         return "Partially Received"
+
 
 # Load data
 if os.path.exists(FILE_PATH):
@@ -52,11 +54,8 @@ for col in COLUMNS:
             df[col] = ""
 
 df = df[COLUMNS]
-
-# Ensure document status is always based on checklist %
 df["Checklist Completion %"] = df["Checklist Completion %"].fillna(0)
 df["Document Status"] = df["Checklist Completion %"].apply(get_document_status)
-
 df.to_excel(FILE_PATH, index=False)
 
 # Sidebar Add Client
@@ -73,7 +72,7 @@ audit_status = st.sidebar.selectbox(
     ["Pending", "In Progress", "Completed"]
 )
 
-if st.sidebar.button("Add Client"):
+if st.sidebar.button("➕ Add Client"):
     if client_name == "" or pan == "":
         st.sidebar.error("Client Name and PAN are mandatory!")
     else:
@@ -176,7 +175,20 @@ if selected_client:
 else:
     filtered_df = df.copy()
 
-st.subheader("📋 Client Database")
+# Client Database
+title_col, download_col = st.columns([9, 1])
+
+with title_col:
+    st.subheader("📋 Client Database")
+
+with download_col:
+    st.download_button(
+        label="⬇",
+        data=filtered_df.to_csv(index=False),
+        file_name="selected_client_data.csv",
+        mime="text/csv",
+        help="Download selected client data"
+    )
 
 editable_df = filtered_df.reset_index()
 
@@ -210,7 +222,7 @@ edited_clients = st.data_editor(
     ]
 )
 
-if st.button("💾 Save Client Status Changes"):
+if st.button("💾 Save Changes", help="Save client status changes"):
     for _, row in edited_clients.iterrows():
         original_index = row["index"]
 
@@ -219,19 +231,14 @@ if st.button("💾 Save Client Status Changes"):
         df.loc[original_index, "ITR Filing Status"] = row["ITR Filing Status"]
 
     df.to_excel(FILE_PATH, index=False)
-
     st.success("✅ Client status updated successfully!")
     st.rerun()
 
-st.download_button(
-    label="⬇ Download Selected Client Data",
-    data=filtered_df.to_csv(index=False),
-    file_name="selected_client_data.csv",
-    mime="text/csv"
-)
-
 # Checklist Editor
 st.subheader("📂 Client Document Checklist Editor")
+
+pending_docs_for_message = []
+selected_ay = ""
 
 if len(df) > 0 and selected_client:
     selected_row = df[df["Client Name"] == selected_client].iloc[0]
@@ -264,7 +271,7 @@ if len(df) > 0 and selected_client:
             disabled=["Document Name"]
         )
 
-        if st.button("💾 Save Checklist"):
+        if st.button("💾 Save Checklist", help="Save checklist"):
             edited_checklist.to_excel(checklist_path, index=False)
 
             total_docs = len(edited_checklist)
@@ -291,11 +298,12 @@ if len(df) > 0 and selected_client:
         st.warning("Checklist file not found for this client.")
 else:
     st.info("Please select a client.")
-    # -------------------------------------------------
-# PENDING DOCUMENTS REPORT SECTION
-# -------------------------------------------------
 
-st.subheader("📑 Pending Documents Report")
+# Pending Documents Report
+report_title_col, report_download_col = st.columns([9, 1])
+
+with report_title_col:
+    st.subheader("📑 Pending Documents Report")
 
 if len(df) > 0 and selected_client:
     selected_row = df[df["Client Name"] == selected_client].iloc[0]
@@ -305,7 +313,6 @@ if len(df) > 0 and selected_client:
 
     if os.path.exists(checklist_path):
         report_df = pd.read_excel(checklist_path)
-
         report_df["Status"] = report_df["Status"].astype(str)
 
         total_documents = len(report_df)
@@ -331,18 +338,57 @@ if len(df) > 0 and selected_client:
             st.metric("Completion %", completion_percentage)
 
         pending_df = report_df[report_df["Status"] == "Pending"]
+        pending_docs_for_message = pending_df["Document Name"].tolist()
+
+        with report_download_col:
+            st.download_button(
+                label="⬇",
+                data=pending_df.to_csv(index=False),
+                file_name=f"{selected_client}_pending_documents.csv",
+                mime="text/csv",
+                help="Download pending documents report"
+            )
 
         st.write("### Pending Document List")
         st.dataframe(pending_df, use_container_width=True)
-
-        st.download_button(
-            label="⬇ Download Pending Documents Report",
-            data=pending_df.to_csv(index=False),
-            file_name=f"{selected_client}_pending_documents.csv",
-            mime="text/csv"
-        )
 
     else:
         st.warning("Checklist file not found for pending report.")
 else:
     st.info("Select a client to view pending documents report.")
+
+# Follow-up Message Dialog
+followup_title_col, followup_btn_col = st.columns([9, 1])
+
+with followup_title_col:
+    st.subheader("📩 Pending Documents Follow-up Message")
+
+@st.dialog("Pending Documents Follow-up Message")
+def show_followup_message():
+    if len(pending_docs_for_message) > 0:
+        pending_list_text = "\n".join(
+            [f"{i + 1}. {doc}" for i, doc in enumerate(pending_docs_for_message)]
+        )
+
+        followup_message = f"""Dear Sir/Madam,
+
+For completing the Tax Audit and Income Tax Return filing for AY {selected_ay}, the following documents are still pending from your side:
+
+{pending_list_text}
+
+Kindly share the above documents at the earliest so that we can proceed further.
+
+Regards,
+Lokesh"""
+
+        st.text_area(
+            "Copy this message and send to client",
+            followup_message,
+            height=300
+        )
+    else:
+        st.success("✅ No pending documents. All required documents are received / marked as Not Applicable.")
+
+with followup_btn_col:
+    if st.button("✉️", help="Open follow-up message"):
+        show_followup_message()
