@@ -1,0 +1,38 @@
+{
+    "meta": {
+        "audit_form": "Form 3CB-3CD",
+        "form_code": "3CB",
+        "created_on": "2026-05-20 13:34:54",
+        "last_updated": "2026-05-20 13:49:17"
+    },
+    "applicability": {
+        "tax_audit_applicable": "Yes",
+        "audit_form": "Form 3CB-3CD",
+        "section_reference": "Section 44AB(e) read with Section 44AD",
+        "itr_basis": "Normal Basis",
+        "itr_form": "ITR-3 for normal business/professional income",
+        "reason": "Accounts are not required to be audited under another law. Therefore, Form 3CB-3CD will apply if tax audit is applicable. | Business turnover is within applicable audit limit of ₹10,00,00,000. | Client does not want to opt presumptive taxation. | Client opted out of presumptive taxation after earlier opting in and income exceeds basic exemption limit."
+    },
+    "report_form": {},
+    "form_3cd": {
+        "1": {
+            "title": "Name of the Assessee",
+            "status": "Filled",
+            "remarks": "",
+            "fields": {
+                "Name of Assessee": ""
+            }
+        },
+        "8": {
+            "title": "Indicate the relevant clause of section 44AB under which audit has been conducted",
+            "utility_sheet": "Form-3CD",
+            "status": "In Progress",
+            "remarks": "Auto-filled from Tax Audit Applicability module.",
+            "fields": {
+                "Relevant clause of section 44AB": "Section 44AB(e) read with Section 44AD",
+                "Reason for applicability": "Accounts are not required to be audited under another law. Therefore, Form 3CB-3CD will apply if tax audit is applicable. | Business turnover is within applicable audit limit of ₹10,00,00,000. | Client does not want to opt presumptive taxation. | Client opted out of presumptive taxation after earlier opting in and income exceeds basic exemption limit.",
+                "Whether auto-filled from Tax Audit Applicability module": "Yes"
+            }
+        }
+    }
+}

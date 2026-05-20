@@ -161,6 +161,7 @@ menu = st.sidebar.radio(
         "🗂️ Working Papers",
         "🔍 Audit Procedures",
         "✅ Final Review",
+        "🧭 Tax Audit Applicability",
         "📑 Tax Report",
     ]
 )
@@ -190,3 +191,7 @@ elif menu == "✅ Final Review":
 elif menu == "📑 Tax Report":
     from modules.tax_report import show_tax_report
     show_tax_report()    
+elif menu == "🧭 Tax Audit Applicability":
+    from modules.tax_audit_applicability import show_tax_audit_applicability
+    show_tax_audit_applicability()
+        
