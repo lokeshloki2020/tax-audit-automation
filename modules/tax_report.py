@@ -2,6 +2,7 @@
 # modules/tax_report.py
 
 import os
+import re
 import json
 from datetime import datetime, date
 
@@ -1186,14 +1187,92 @@ def calculate_completion(report_data):
     return completed_count, total_count, completion
 
 
+
 # ---------------------------------------------------------
-# BASIC JSON EXPORT PLACEHOLDER
+# FINAL INCOME-TAX UTILITY COMPATIBLE JSON EXPORT
 # ---------------------------------------------------------
+
+STATE_CODE_MAP = {
+    "andaman and nicobar islands": "01",
+    "andhra pradesh": "02",
+    "arunachal pradesh": "03",
+    "assam": "04",
+    "bihar": "05",
+    "chandigarh": "06",
+    "dadra and nagar haveli": "07",
+    "daman and diu": "08",
+    "delhi": "09",
+    "goa": "10",
+    "gujarat": "11",
+    "haryana": "12",
+    "himachal pradesh": "13",
+    "jammu and kashmir": "14",
+    "karnataka": "15",
+    "kerala": "16",
+    "lakshadweep": "17",
+    "madhya pradesh": "18",
+    "maharashtra": "19",
+    "manipur": "20",
+    "meghalaya": "21",
+    "mizoram": "22",
+    "nagaland": "23",
+    "odisha": "24",
+    "puducherry": "25",
+    "punjab": "26",
+    "rajasthan": "27",
+    "sikkim": "28",
+    "tamil nadu": "29",
+    "tripura": "30",
+    "uttar pradesh": "31",
+    "west bengal": "32",
+    "chhattisgarh": "33",
+    "uttarakhand": "34",
+    "jharkhand": "35",
+    "telangana": "36",
+    "ladakh": "37",
+    "foreign": "99",
+}
+
+STATUS_CODE_MAP = {
+    "individual": 1,
+    "huf": 2,
+    "hindu undivided family": 2,
+    "firm": 3,
+    "partnership firm": 3,
+    "limited liability partnership": 4,
+    "llp": 4,
+    "company": 5,
+    "trust": 6,
+    "aop": 7,
+    "association of person": 7,
+    "local authority": 8,
+    "artificial juridical person": 9,
+    "co-operative society": 10,
+    "cooperative society": 10,
+    "co-operative bank": 11,
+    "cooperative bank": 11,
+    "body of individuals": 12,
+    "boi": 12,
+}
+
+LAW_CODE_MAP_3CA = {
+    "companies act, 2013": "14",
+    "company": "14",
+    "limited liability partnership act, 2008": "33",
+    "llp": "33",
+    "co-operative societies act": "52",
+    "cooperative societies act": "52",
+    "societies registration act": "58",
+    "trust act": "27",
+    "indian trusts act, 1882": "27",
+    "income-tax act, 1961": "24",
+    "other law": "99",
+}
+
 
 def export_internal_json(client_name, ay, report_data):
     """
     This exports the TAAS internal schema-based JSON.
-    Final Income-tax portal utility JSON mapping can be added after field testing.
     """
     folder = get_tax_report_folder(client_name, ay)
     audit_form = report_data.get("meta", {}).get("audit_form", "Not Applicable")
@@ -1205,6 +1284,855 @@ def export_internal_json(client_name, ay, report_data):
         json.dump(report_data, file, indent=4, ensure_ascii=False)
 
     return path
+
+
+def get_report_fields(report_data):
+    return report_data.get("report_form", {}).get("fields", {}) or {}
+
+
+def get_field(fields, *names, default=""):
+    for name in names:
+        value = fields.get(name, "")
+        if str(value).strip() not in ["", "None", "nan", "NaT"]:
+            return value
+    return default
+
+
+def normalize_text(value, max_length=None):
+    value = "" if value is None else str(value).strip()
+
+    if max_length and len(value) > max_length:
+        value = value[:max_length]
+
+    return value
+
+
+def normalize_date_string(value, default=""):
+    if value in ["", None, "None", "nan", "NaT"]:
+        return default
+
+    try:
+        parsed = pd.to_datetime(value)
+        return parsed.strftime("%Y-%m-%d")
+    except Exception:
+        return str(value)
+
+
+def normalize_country_code(value):
+    value = normalize_text(value)
+
+    if not value:
+        return "91"
+
+    if "-" in value:
+        return value.split("-")[0].strip()
+
+    if value.lower() in ["india", "in"]:
+        return "91"
+
+    if value.isdigit():
+        return value
+
+    return "91"
+
+
+def normalize_state_code(value):
+    value = normalize_text(value)
+
+    if not value:
+        return ""
+
+    if value.isdigit():
+        return value.zfill(2)
+
+    lowered = value.lower().strip()
+
+    if "-" in lowered:
+        possible_code = lowered.split("-")[0].strip()
+        if possible_code.isdigit():
+            return possible_code.zfill(2)
+
+    return STATE_CODE_MAP.get(lowered, "")
+
+
+def normalize_pan(value):
+    return normalize_text(value).upper()
+
+
+def normalize_aadhaar(value):
+    value = normalize_text(value)
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return digits
+
+
+def normalize_membership(value):
+    value = normalize_text(value)
+    digits = "".join(ch for ch in value if ch.isdigit())
+
+    if len(digits) >= 6:
+        return digits[-6:]
+
+    return digits
+
+
+def normalize_yes_no(value, default="N"):
+    value = normalize_text(value).upper()
+
+    if value in ["Y", "YES", "TRUE", "1", "APPLICABLE"]:
+        return "Y"
+
+    if value in ["N", "NO", "FALSE", "0", "NOT APPLICABLE"]:
+        return "N"
+
+    return default
+
+
+def ay_to_schema_year(ay):
+    value = normalize_text(ay)
+
+    match = re.search(r"(20\d{2})", value)
+
+    if match:
+        return match.group(1)
+
+    current = date.today()
+    return str(current.year)
+
+
+def ay_to_full_string(ay):
+    value = normalize_text(ay)
+
+    if re.match(r"20\d{2}-\d{2}", value):
+        return value
+
+    year = ay_to_schema_year(value)
+
+    try:
+        return f"{int(year)}-{str(int(year) + 1)[-2:]}"
+    except Exception:
+        return value
+
+
+def get_financial_year_start_end_from_ay(ay):
+    ay_year = int(ay_to_schema_year(ay))
+    py_start = date(ay_year - 1, 4, 1).strftime("%Y-%m-%d")
+    py_end = date(ay_year, 3, 31).strftime("%Y-%m-%d")
+    return py_start, py_end
+
+
+def build_assessee_name(fields, client_name):
+    last_name = get_field(fields, "Assessee Last Name", default="")
+
+    if not last_name:
+        last_name = client_name
+
+    return {
+        "FirstName": normalize_text(get_field(fields, "Assessee First Name"), 25),
+        "MiddleName": normalize_text(get_field(fields, "Assessee Middle Name"), 25),
+        "LastName": normalize_text(last_name, 75),
+    }
+
+
+def build_address_detail(fields, prefix="Assessee"):
+    addr1 = get_field(fields, f"{prefix} Flat Door Building", default="")
+    addr2 = get_field(fields, f"{prefix} Road Street Block Sector", default="")
+    district = get_field(fields, f"{prefix} District", default="")
+    area = get_field(fields, f"{prefix} Area Locality", default="")
+    post_office = get_field(fields, f"{prefix} Post Office", default="")
+    state = get_field(fields, f"{prefix} State", default="")
+    country = get_field(fields, f"{prefix} Country Region", default="91-India")
+    pincode = get_field(fields, f"{prefix} Pincode", f"{prefix} ZIP Code", default="")
+
+    return {
+        "AddrDetail1": normalize_text(addr1, 100),
+        "AddrDetail2": normalize_text(addr2, 100),
+        "CityOrTownOrDistrict": normalize_text(district, 50),
+        "LocalityOrArea": normalize_text(area, 50),
+        "LocalityOrAreaName": normalize_text(area, 50),
+        "PostOffice": normalize_text(post_office, 50),
+        "PostOfficeName": normalize_text(post_office, 50),
+        "StateCode": normalize_state_code(state),
+        "CountryCode": normalize_country_code(country),
+        "PinCode": normalize_text(pincode),
+    }
+
+
+def build_accountant_other_info(fields):
+    report_date = normalize_date_string(
+        get_field(fields, "Report Date", "Date of signing Tax Audit Report"),
+        default=date.today().strftime("%Y-%m-%d")
+    )
+
+    return {
+        "FirstName": normalize_text(get_field(fields, "Accountant First Name"), 25),
+        "MiddleName": normalize_text(get_field(fields, "Accountant Middle Name"), 25),
+        "LastName": normalize_text(get_field(fields, "Accountant Last Name"), 75),
+        "AddrDetail1": normalize_text(get_field(fields, "Accountant Flat Door Building"), 100),
+        "AddrDetail2": normalize_text(get_field(fields, "Accountant Road Street Block Sector"), 100),
+        "CityOrTownOrDistrict": normalize_text(get_field(fields, "Accountant District"), 50),
+        "LocalityOrArea": normalize_text(get_field(fields, "Accountant Area Locality"), 50),
+        "LocalityOrAreaName": normalize_text(get_field(fields, "Accountant Area Locality"), 50),
+        "PostOffice": normalize_text(get_field(fields, "Accountant Post Office"), 50),
+        "PostOfficeName": normalize_text(get_field(fields, "Accountant Post Office"), 50),
+        "StateCode": normalize_state_code(get_field(fields, "Accountant State")),
+        "CountryCode": normalize_country_code(get_field(fields, "Accountant Country Region", default="91-India")),
+        "PinCode": normalize_text(get_field(fields, "Accountant ZIP Code")),
+        "Place": normalize_text(get_field(fields, "Place"), 35),
+        "IpAddress": "IpAddress",
+        "Date": report_date,
+        "MembershipNo": normalize_membership(get_field(fields, "Accountant Membership Number")),
+        "FirmRegNum": normalize_text(get_field(fields, "Accountant FRN"), 8),
+    }
+
+
+def get_client_database_row(client_name):
+    try:
+        df = load_clients()
+        if df.empty or "Client Name" not in df.columns:
+            return {}
+
+        rows = df[df["Client Name"].astype(str) == str(client_name)]
+
+        if len(rows) == 0:
+            return {}
+
+        return rows.iloc[0].to_dict()
+    except Exception:
+        return {}
+
+
+def build_creation_info(fields):
+    return {
+        "SWVersionNo": "R2",
+        "SWCreatedBy": "TAAS",
+        "JSONCreatedBy": "TAAS",
+        "JSONCreationDate": date.today().strftime("%Y-%m-%d"),
+        "IntermediaryCity": normalize_text(get_field(fields, "Place", default="Hyderabad"), 50),
+    }
+
+
+def build_form_details(audit_form, ay):
+    form_name = "FORM3CA" if audit_form == "Form 3CA-3CD" else "FORM3CB"
+
+    if audit_form == "Form 3CA-3CD":
+        description = (
+            "Audit report under section 44AB of the Income-tax Act, 1961, "
+            "in a case where the accounts of the business or profession of a person have been audited under any other law"
+        )
+    else:
+        description = (
+            "Audit report under section 44AB of the Income-tax Act, 1961, "
+            "in a case of a person referred to in clause (b) of sub-rule (1) of rule 6G"
+        )
+
+    return {
+        "FormName": form_name,
+        "Description": description,
+        "AssessmentYear": ay_to_schema_year(ay),
+        "SchemaVer": "Ver2.5",
+        "FormVer": "1.0",
+    }
+
+
+def build_observations_array(text_value):
+    text_value = normalize_text(text_value, 1000)
+
+    if not text_value:
+        return []
+
+    return [
+        {
+            "ObservationsCode": "17",
+            "ObservationsVal": text_value,
+        }
+    ]
+
+
+def build_declaration_3ca(fields, client_name, ay):
+    assessee_name = build_assessee_name(fields, client_name)
+    address_detail = build_address_detail(fields, "Assessee")
+
+    law_value = normalize_text(get_field(fields, "Other Law Name", default="Companies Act, 2013")).lower()
+    law_code = LAW_CODE_MAP_3CA.get(law_value, "99")
+
+    start_date, end_date = get_financial_year_start_end_from_ay(ay)
+
+    audit_start_date = normalize_date_string(
+        get_field(fields, "Period Beginning From"),
+        default=start_date
+    )
+    audit_end_date = normalize_date_string(
+        get_field(fields, "Period Ending On"),
+        default=end_date
+    )
+
+    balance_sheet_date = normalize_date_string(
+        get_field(fields, "Audited Balance Sheet Date"),
+        default=end_date
+    )
+
+    audit_report_date = normalize_date_string(
+        get_field(fields, "Statutory Audit Report Date"),
+        default=date.today().strftime("%Y-%m-%d")
+    )
+
+    signing_date = normalize_date_string(
+        get_field(fields, "Date of signing Tax Audit Report"),
+        default=date.today().strftime("%Y-%m-%d")
+    )
+
+    point1 = {
+        "I_We1": normalize_text(get_field(fields, "Declaration Type", default="I")),
+        "AssesseeName": assessee_name,
+        "AddressDetail": address_detail,
+        "PAN": normalize_pan(get_field(fields, "Assessee PAN")),
+        "AadhaarCardNo": normalize_aadhaar(get_field(fields, "Assessee Aadhaar")),
+        "Me_Us_Ms": normalize_text(get_field(fields, "Statutory Audit Conducted By", default="me")).title(),
+        "CA_FirmName": normalize_text(get_field(fields, "Statutory Auditor Name"), 125),
+        "Act": law_code,
+        "Other_Act": normalize_text(get_field(fields, "Other Law Name"), 125) if law_code == "99" else "",
+        "I_We2": normalize_text(get_field(fields, "Other Law Declaration Type", default="I")),
+        "My_Our_Their": normalize_text(get_field(fields, "Audit Report Possessive", default="my")).title(),
+        "AuditDated": audit_report_date,
+        "DateofsigningTaxAuditReport": signing_date,
+        "PointA": {
+            "TypeOfAccount": normalize_text(get_field(fields, "Audited Statement Type", default="Profit and loss account")),
+            "AuditStartDate": audit_start_date,
+            "AuditEndDate": audit_end_date,
+        },
+        "AuditYearDate": balance_sheet_date,
+        "PointC": normalize_text(get_field(fields, "Audited Statement Type", default="Profit and loss account")),
+    }
+
+    obs_text = get_field(fields, "Form 3CD Observations Qualifications", default="")
+
+    point3 = {
+        "My_Our1": "My",
+        "My_Our2": "My",
+        "Me_Us": "Me",
+        "Observations": build_observations_array(obs_text),
+    }
+
+    return {
+        "Point1": point1,
+        "Point3": point3,
+    }
+
+
+def build_declaration_3cb(fields, client_name, ay):
+    assessee_name = build_assessee_name(fields, client_name)
+    address_detail = build_address_detail(fields, "Assessee")
+
+    start_date, end_date = get_financial_year_start_end_from_ay(ay)
+
+    period_start = normalize_date_string(
+        get_field(fields, "Period Beginning From"),
+        default=start_date
+    )
+    period_end = normalize_date_string(
+        get_field(fields, "Period Ending On"),
+        default=end_date
+    )
+
+    signing_date = normalize_date_string(
+        get_field(fields, "Date of signing Tax Audit Report"),
+        default=date.today().strftime("%Y-%m-%d")
+    )
+
+    balance_year_value = get_field(fields, "Balance Sheet Date", default=ay_to_schema_year(ay))
+
+    try:
+        balance_year = int(str(balance_year_value).strip()[:4])
+    except Exception:
+        balance_year = int(ay_to_schema_year(ay))
+
+    statement_type = normalize_text(get_field(fields, "Statement Type", default="Profit and loss account"))
+    declaration_type = normalize_text(get_field(fields, "Declaration Type", default="I"))
+
+    branches_value = get_field(fields, "Books Branches", default="0")
+
+    try:
+        number_of_branches = int(float(str(branches_value).replace(",", "").strip() or 0))
+    except Exception:
+        number_of_branches = 0
+
+    observations_text = get_field(fields, "Observations Comments Discrepancies", default="")
+    form3cd_obs_text = get_field(fields, "Form 3CD Observations Qualifications", default="")
+    profit_loss = normalize_text(get_field(fields, "Profit Or Loss", default="Profit"))
+
+    return {
+        "Point1": {
+            "I_We": declaration_type,
+            "DateofsigningTaxAuditReport": signing_date,
+            "Year": balance_year,
+            "TypeOfAccount": statement_type,
+            "StartDate": period_start,
+            "EndDate": period_end,
+            "AssesseeName": assessee_name,
+            "AddressDetail": address_detail,
+            "AadhaarCardNo": normalize_aadhaar(get_field(fields, "Assessee Aadhaar")),
+            "PAN": normalize_pan(get_field(fields, "Assessee PAN")),
+        },
+        "Point2": {
+            "I_We": declaration_type,
+            "TypeOfAccount": statement_type,
+            "HeadOfficeLocation": normalize_text(get_field(fields, "Books Head Office Address"), 150),
+            "NumberOfBrances": number_of_branches,
+        },
+        "Point3": {
+            "PointA": {
+                "I_We": declaration_type,
+                "OCDI": "Observations" if observations_text else "",
+                "OCDI_Description": normalize_text(observations_text, 1000),
+            },
+            "PointB_A": {
+                "I_We": declaration_type,
+                "My_Our": "My" if declaration_type == "I" else "Our",
+            },
+            "PointB_B": {
+                "My_Our1": "My" if declaration_type == "I" else "Our",
+                "My_Our2": "My" if declaration_type == "I" else "Our",
+            },
+            "PointB_C": {
+                "My_Our1": "My" if declaration_type == "I" else "Our",
+                "My_Our2": "My" if declaration_type == "I" else "Our",
+                "Me_Us": "Me" if declaration_type == "I" else "Us",
+                "PointFirst": str(balance_year),
+                "PointSecond": {
+                    "typeOfAccount": statement_type,
+                    "PLSD": profit_loss,
+                },
+            },
+        },
+        "Point5": {
+            "My_Our1": "My" if declaration_type == "I" else "Our",
+            "My_Our2": "My" if declaration_type == "I" else "Our",
+            "Me_Us": "Me" if declaration_type == "I" else "Us",
+            "Observations": build_observations_array(form3cd_obs_text),
+        },
+    }
+
+
+def merge_non_empty(base, updates):
+    for key, value in updates.items():
+        if isinstance(value, dict):
+            base.setdefault(key, {})
+            if isinstance(base[key], dict):
+                merge_non_empty(base[key], value)
+            else:
+                base[key] = value
+        elif isinstance(value, list):
+            if value:
+                base[key] = value
+        else:
+            if str(value).strip() not in ["", "None", "nan", "NaT"]:
+                base[key] = value
+    return base
+
+
+def set_by_schema_key(target, schema_key, data):
+    if not schema_key or schema_key.startswith("TAAS_"):
+        return
+
+    if data in [None, {}, []]:
+        return
+
+    parts = schema_key.split(".")
+    root_key = parts[0]
+
+    if root_key == "PartA":
+        current = target.setdefault("PartA", {})
+
+        if len(parts) == 1:
+            if isinstance(data, dict):
+                merge_non_empty(current, data)
+            return
+
+        for part in parts[1:-1]:
+            current = current.setdefault(part, {})
+
+        last_key = parts[-1]
+        current[last_key] = data
+        return
+
+    current = target
+
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+
+    current[parts[-1]] = data
+
+
+def clean_utility_value(value):
+    if value is None:
+        return None
+
+    if isinstance(value, dict):
+        cleaned = {}
+
+        for key, item in value.items():
+            cleaned_item = clean_utility_value(item)
+
+            if cleaned_item not in [None, "", [], {}]:
+                cleaned[key] = cleaned_item
+
+        return cleaned
+
+    if isinstance(value, list):
+        cleaned_list = []
+
+        for item in value:
+            cleaned_item = clean_utility_value(item)
+
+            if cleaned_item not in [None, "", [], {}]:
+                cleaned_list.append(cleaned_item)
+
+        return cleaned_list
+
+    if isinstance(value, float):
+        if value.is_integer():
+            return int(value)
+
+        return value
+
+    if isinstance(value, str):
+        value = value.strip()
+
+        if value in ["", "None", "nan", "NaT"]:
+            return ""
+
+        return value
+
+    return value
+
+
+def build_part_a_defaults(fields, client_name, ay, client_row):
+    start_date, end_date = get_financial_year_start_end_from_ay(ay)
+
+    assessee_pan = normalize_pan(
+        get_field(fields, "Assessee PAN", default=client_row.get("PAN", ""))
+    )
+
+    aadhaar = normalize_aadhaar(get_field(fields, "Assessee Aadhaar"))
+
+    status_value = get_field(fields, "Type / Status of Assessee", default="")
+    status_code = STATUS_CODE_MAP.get(str(status_value).strip().lower(), "")
+
+    part_a = {
+        "AssesseeName": build_assessee_name(fields, client_name),
+        "AddressDetail": build_address_detail(fields, "Assessee"),
+        "PAN": assessee_pan,
+        "IndirectTaxFlag": "Y" if str(client_row.get("GSTIN", "")).strip() else "N",
+        "Status": status_code,
+        "PartAStartDate": start_date,
+        "PartAEndDate": end_date,
+        "AssessmentYear": ay_to_full_string(ay),
+    }
+
+    if aadhaar:
+        part_a["AadhaarCardNo"] = aadhaar
+
+    if str(client_row.get("GSTIN", "")).strip():
+        part_a["Form3cdIndirectTax"] = [
+            {
+                "IndirectTaxType": "GST",
+                "RegNo": str(client_row.get("GSTIN", "")).strip(),
+            }
+        ]
+
+    return part_a
+
+
+def build_form3cd_flags(inner_data):
+    flags = {
+        "ChngMethodOfAcc": "N",
+        "ChngShareSec79": "X",
+        "IncomeCluaseixofsubsection2": "N",
+        "IncomeCluasexofsubsection2": "N",
+        "FurnishStatement": "N",
+        "SubSec2Sec286": "D",
+    }
+
+    optional_flag_defaults = {
+        "ChangeInPartner": "N",
+        "ChangeNaturBuisnes": "N",
+        "BookOfAcnt": "N",
+        "PrftLoassAcnt": "N",
+        "Sec145": "N",
+        "Sec145A": "N",
+        "Sec40A3": "N",
+        "Sec40A3A": "N",
+        "SalesTax": "N",
+        "VATAcnt": "N",
+        "VATPY": "N",
+        "Section69D": "N",
+        "SectionDed": "N",
+        "ChapXVIIFlag": "N",
+        "TaxPrescTime": "N",
+        "Sec201_1A_206_C7": "X",
+        "SharesOfMem": "N",
+        "Form3cdSec562viiaFlag": "X",
+        "Form3cdSec562viibFlag": "X",
+        "TransferPriceSection92CE": "N",
+        "IncurredExpenditure": "N",
+        "ImpermissibleSec96": "N",
+        "Section36BFlag": "N",
+        "SubClauseeofClause22": "N",
+    }
+
+    flags.update(optional_flag_defaults)
+
+    # Basic auto-detection from exported data.
+    key_to_flag = {
+        "Form3cdChangeInPartners": "ChangeInPartner",
+        "F3cdFirmAopDtlChangeInNature": "ChangeNaturBuisnes",
+        "Form3cdBooksOfAccLst": "BookOfAcnt",
+        "Form3cdProfGainsPresum": "PrftLoassAcnt",
+        "Form3cdChngMethAccVal": "ChngMethodOfAcc",
+        "Form3cdChngMethAccValChange": "Sec145",
+        "MethodValCS": "Sec145A",
+        "Form3cdIncomeUnderSec40A_3": "Sec40A3",
+        "ExpendSec40A_3": "Sec40A3A",
+        "Form3cdSec69d": "Section69D",
+        "Form3cdChapVIaChapIII": "SectionDed",
+        "Form3cdChapXVII": "ChapXVIIFlag",
+        "Form3cdTaxDedCollect": "TaxPrescTime",
+        "Form3cdSec2011A206C7": "Sec201_1A_206_C7",
+        "Form3cdSec562viia": "Form3cdSec562viiaFlag",
+        "Form3cdSec562viib": "Form3cdSec562viibFlag",
+        "Form3cdSec29IncOtherSourcesAb": "IncomeCluaseixofsubsection2",
+        "Form3cdSec29IncOtherSourcesBb": "IncomeCluasexofsubsection2",
+        "Form3cdSec92CE": "TransferPriceSection92CE",
+        "Form3cdIncurredExpenditure": "IncurredExpenditure",
+        "Form3cdImpermissibleSec96": "ImpermissibleSec96",
+        "Form3cd36BRecievedAmt": "Section36BFlag",
+        "Form3cdFurnishStatemnt": "FurnishStatement",
+        "Form3cdFurnishAltReportSec286": "SubSec2Sec286",
+    }
+
+    for data_key, flag_key in key_to_flag.items():
+        if data_key in inner_data and inner_data.get(data_key) not in [None, {}, []]:
+            if flag_key in ["ChngShareSec79", "Sec201_1A_206_C7", "Form3cdSec562viiaFlag", "Form3cdSec562viibFlag"]:
+                flags[flag_key] = "Y"
+            elif flag_key == "SubSec2Sec286":
+                flags[flag_key] = "Y"
+            else:
+                flags[flag_key] = "Y"
+
+    if "Form3cdFlags" in inner_data and isinstance(inner_data.get("Form3cdFlags"), dict):
+        merge_non_empty(flags, inner_data["Form3cdFlags"])
+
+    return flags
+
+
+def apply_saved_3cd_blocks_to_utility_json(inner_data, report_data):
+    form_3cd = report_data.get("form_3cd", {}) or {}
+
+    for clause_no, clause_data in form_3cd.items():
+        blocks = clause_data.get("blocks", {}) or {}
+
+        for block_name, block_data in blocks.items():
+            schema_key = block_data.get("schema_key", "")
+            block_type = block_data.get("type", "")
+            data = block_data.get("data", [] if block_type == "table" else {})
+
+            data = clean_utility_value(data)
+
+            if data in [None, "", [], {}]:
+                continue
+
+            set_by_schema_key(inner_data, schema_key, data)
+
+    # Legacy Clause 8 linkage support.
+    clause_8 = form_3cd.get("8", {})
+    legacy_fields = clause_8.get("fields", {})
+
+    if legacy_fields and "PartA" in inner_data:
+        clause_value = legacy_fields.get("Relevant clause of section 44AB", "")
+        clause_value = normalize_section_44ab_clause_code(clause_value)
+
+        if clause_value:
+            inner_data["PartA"]["Clause"] = [{"ClauseNo": clause_value}]
+
+
+def normalize_section_44ab_clause_code(value):
+    value = normalize_text(value)
+
+    value_upper = value.upper().replace(" ", "")
+
+    mapping = {
+        "44AB(A)": "44ABa",
+        "44ABA": "44ABa",
+        "44AB(A)-PROVISO": "44ABAA",
+        "44ABAA": "44ABAA",
+        "44AB(B)": "44ABb",
+        "44ABB": "44ABb",
+        "44AB(C)": "44ABci",
+        "44ABC": "44ABci",
+        "44AB(D)": "44ABd",
+        "44ABD": "44ABd",
+        "44AB(E)": "44ABe",
+        "44ABE": "44ABe",
+        "44AB3": "44AB3",
+        "OTHERLAWAUDIT": "44AB3",
+    }
+
+    for key, mapped in mapping.items():
+        if key in value_upper:
+            return mapped
+
+    allowed = ["44ABa", "44ABAA", "44ABb", "44ABci", "44ABcii", "44ABciii", "44ABd", "44ABe", "44AB3"]
+
+    if value in allowed:
+        return value
+
+    return ""
+
+
+def build_utility_json_payload(client_name, ay, report_data):
+    audit_form = report_data.get("meta", {}).get("audit_form", "Not Applicable")
+
+    if not is_valid_tax_audit_form(audit_form):
+        raise ValueError("Invalid or missing audit form. Complete Tax Audit Applicability first.")
+
+    fields = get_report_fields(report_data)
+    client_row = get_client_database_row(client_name)
+
+    root_key, inner_root_key = get_tax_audit_root_keys(audit_form)
+    form_code = get_tax_audit_form_code(audit_form)
+
+    inner_data = {
+        "CreationInfo": build_creation_info(fields),
+        "Form_Details": build_form_details(audit_form, ay),
+        "PartA": build_part_a_defaults(fields, client_name, ay, client_row),
+        "OtherInformation1": build_accountant_other_info(fields),
+    }
+
+    if audit_form == "Form 3CA-3CD":
+        inner_data["Declaration"] = build_declaration_3ca(fields, client_name, ay)
+    else:
+        inner_data["Declaration"] = build_declaration_3cb(fields, client_name, ay)
+
+    apply_saved_3cd_blocks_to_utility_json(inner_data, report_data)
+
+    inner_data["Form3cdFlags"] = build_form3cd_flags(inner_data)
+
+    inner_data = clean_utility_value(inner_data)
+
+    payload = {
+        "metadata": {
+            "filingType": "O",
+            "refYearType": "AY",
+            "financialQtr": 0,
+            "refYear": int(ay_to_schema_year(ay)),
+            "formName": f"F{form_code}-3CD",
+        },
+        "data": {
+            root_key: {
+                inner_root_key: inner_data
+            }
+        }
+    }
+
+    return payload
+
+
+def collect_missing_utility_fields(payload, audit_form):
+    missing = []
+
+    try:
+        root_key, inner_root_key = get_tax_audit_root_keys(audit_form)
+        inner = payload.get("data", {}).get(root_key, {}).get(inner_root_key, {})
+
+        required_top = ["CreationInfo", "Form_Details", "Declaration", "PartA", "Form3cdFlags", "OtherInformation1"]
+
+        for key in required_top:
+            if key not in inner or inner.get(key) in [{}, [], "", None]:
+                missing.append(key)
+
+        part_a = inner.get("PartA", {}) or {}
+
+        for key in ["AssesseeName", "AddressDetail", "PAN", "IndirectTaxFlag", "Status", "PartAStartDate", "PartAEndDate", "AssessmentYear"]:
+            if part_a.get(key) in ["", None, {}, []]:
+                missing.append(f"PartA.{key}")
+
+        address = part_a.get("AddressDetail", {}) or {}
+
+        for key in ["AddrDetail1", "CityOrTownOrDistrict", "StateCode", "CountryCode", "PinCode"]:
+            if address.get(key) in ["", None, {}, []]:
+                missing.append(f"PartA.AddressDetail.{key}")
+
+        assessee = part_a.get("AssesseeName", {}) or {}
+
+        if not assessee.get("LastName"):
+            missing.append("PartA.AssesseeName.LastName")
+
+        other = inner.get("OtherInformation1", {}) or {}
+
+        for key in ["LastName", "AddrDetail1", "CityOrTownOrDistrict", "StateCode", "PinCode", "CountryCode", "Place", "Date", "MembershipNo"]:
+            if other.get(key) in ["", None, {}, []]:
+                missing.append(f"OtherInformation1.{key}")
+
+        declaration = inner.get("Declaration", {}) or {}
+
+        if audit_form == "Form 3CA-3CD":
+            point1 = declaration.get("Point1", {}) or {}
+            for key in ["I_We1", "AssesseeName", "AddressDetail", "Me_Us_Ms", "CA_FirmName", "Act", "I_We2", "My_Our_Their", "AuditDated", "DateofsigningTaxAuditReport", "PointA", "AuditYearDate", "PointC"]:
+                if point1.get(key) in ["", None, {}, []]:
+                    missing.append(f"Declaration.Point1.{key}")
+        else:
+            point1 = declaration.get("Point1", {}) or {}
+            for key in ["I_We", "DateofsigningTaxAuditReport", "Year", "TypeOfAccount", "StartDate", "EndDate", "AssesseeName", "AddressDetail", "PAN"]:
+                if point1.get(key) in ["", None, {}, []]:
+                    missing.append(f"Declaration.Point1.{key}")
+
+            point2 = declaration.get("Point2", {}) or {}
+            for key in ["I_We", "TypeOfAccount", "HeadOfficeLocation", "NumberOfBrances"]:
+                if point2.get(key) in ["", None, {}, []]:
+                    missing.append(f"Declaration.Point2.{key}")
+
+    except Exception as e:
+        missing.append(f"Validation check failed: {e}")
+
+    return sorted(set(missing))
+
+
+def export_utility_compatible_json(client_name, ay, report_data):
+    folder = get_tax_report_folder(client_name, ay)
+    audit_form = report_data.get("meta", {}).get("audit_form", "Not Applicable")
+    form_code = get_tax_audit_form_code(audit_form)
+
+    payload = build_utility_json_payload(client_name, ay, report_data)
+
+    json_path = f"{folder}/income_tax_utility_{form_code}_3CD.json"
+
+    with open(json_path, "w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=4, ensure_ascii=False)
+
+    missing_fields = collect_missing_utility_fields(payload, audit_form)
+
+    validation_path = f"{folder}/income_tax_utility_{form_code}_3CD_validation_summary.txt"
+
+    with open(validation_path, "w", encoding="utf-8") as file:
+        file.write("TAAS Income-tax Utility JSON Export Validation Summary\n")
+        file.write("=" * 58 + "\n\n")
+        file.write(f"Client Name: {client_name}\n")
+        file.write(f"Assessment Year: {ay}\n")
+        file.write(f"Audit Form: {audit_form}\n")
+        file.write(f"JSON File: {json_path}\n\n")
+
+        if missing_fields:
+            file.write("Pending / Missing Required Values:\n")
+            for item in missing_fields:
+                file.write(f"- {item}\n")
+        else:
+            file.write("No major required-field gaps detected by TAAS basic validation.\n")
+
+        file.write("\nImportant:\n")
+        file.write("This is a schema-structured utility export generated from TAAS saved data.\n")
+        file.write("Final acceptance should still be tested in the Income-tax offline/online utility.\n")
+
+    return json_path, validation_path, missing_fields
 
 
 # ---------------------------------------------------------
@@ -1468,7 +2396,7 @@ def show_tax_report():
 
     st.subheader("📤 Export")
 
-    export_col1, export_col2 = st.columns(2)
+    export_col1, export_col2, export_col3 = st.columns(3)
 
     with export_col1:
         if st.button("📤 Export Complete Tax Audit Report to Excel", use_container_width=True):
@@ -1488,7 +2416,29 @@ def show_tax_report():
             )
             st.success(f"✅ Internal JSON exported successfully: {json_path}")
 
+    with export_col3:
+        if st.button("🏛️ Export Income-tax Utility JSON", use_container_width=True):
+            try:
+                utility_json_path, validation_path, missing_fields = export_utility_compatible_json(
+                    selected_client,
+                    selected_ay,
+                    latest_report_data
+                )
+
+                st.success(f"✅ Utility JSON exported successfully: {utility_json_path}")
+                st.info(f"Validation summary saved: {validation_path}")
+
+                if missing_fields:
+                    with st.expander("View pending required values"):
+                        for item in missing_fields:
+                            st.write(f"- {item}")
+                else:
+                    st.success("No major required-field gaps detected by TAAS basic validation.")
+
+            except Exception as e:
+                st.error(f"Utility JSON export failed: {e}")
+
     st.caption(
-        "This version implements schema-aware Form 3CD data entry. "
-        "The next enhancement can convert TAAS internal JSON into final Income-tax portal utility JSON."
+        "This version supports schema-aware Form 3CD data entry and Income-tax utility-style JSON export. "
+        "Final portal/offline-utility acceptance should be tested with completed mandatory fields."
     )
