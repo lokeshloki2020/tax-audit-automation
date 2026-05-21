@@ -1,19 +1,20 @@
+
 # modules/tax_report_template.py
 
-# ---------------------------------------------------------
-# TAX AUDIT REPORT TEMPLATE SYSTEM
-# Form 3CA / Form 3CB / Form 3CD
-# ---------------------------------------------------------
-# This file controls:
-# 1. Form 3CA report-level fields
-# 2. Form 3CB report-level fields
-# 3. Form 3CD clause-wise fields
-#
-# Current update:
-# - New portal-style Form 3CA details added
-# - Existing portal-style Form 3CB details retained
-# - Form 3CD clauses retained with clauses 1 to 44
-# ---------------------------------------------------------
+"""
+Tax Audit Report Template System for TAAS.
+
+This file contains:
+1. Form 3CA structured report fields.
+2. Form 3CB structured report fields.
+3. Form 3CD clause-wise schema mapping based on Income-tax utility schema keys.
+4. Helper functions used by modules/tax_report.py.
+
+Important:
+- Form 3CA and Form 3CB report fields remain structured.
+- Form 3CD is now implemented as a schema-aware clause system.
+- Final utility JSON export can be built on top of the schema_key mapping.
+"""
 
 
 # ---------------------------------------------------------
@@ -31,6 +32,9 @@ TAX_AUDIT_FORMS = {
             "Audit report under section 44AB of the Income-tax Act, 1961, "
             "where the accounts of the business or profession have been audited under any other law."
         ),
+        "schema_file": "schema_3CA.json",
+        "root": "FORM3CA",
+        "inner_root": "F3CA",
     },
     "Form 3CB-3CD": {
         "code": "3CB",
@@ -42,540 +46,967 @@ TAX_AUDIT_FORMS = {
             "Audit report under section 44AB of the Income-tax Act, 1961, "
             "in a case referred to in clause (b) of sub-rule (1) of rule 6G."
         ),
+        "schema_file": "schema_3CB.json",
+        "root": "FORM3CB",
+        "inner_root": "F3CB",
     },
     "Not Applicable": {
         "code": "NA",
         "title": "Tax Audit Not Applicable",
         "description": "Tax audit report is not applicable.",
+        "schema_file": "",
+        "root": "",
+        "inner_root": "",
     },
 }
 
 
 # ---------------------------------------------------------
-# FORM 3CD CLAUSE MASTER
+# FORM 3CD CLAUSE MASTER - SCHEMA AWARE
+# ---------------------------------------------------------
+# block type:
+# - "object" => single set of fields
+# - "table"  => repeating rows / data editor
+#
+# schema_key:
+# Official utility backend key available in schema_3CA/schema_3CB.
+#
+# fallback_fields:
+# Used when schema file is not found or definition extraction fails.
 # ---------------------------------------------------------
 
 FORM_3CD_CLAUSES = {
     "1": {
         "title": "Name of the assessee",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Name of the assessee",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Assessee Name",
+                "schema_key": "PartA.AssesseeName",
+                "type": "object",
+                "fallback_fields": ["FirstName", "MiddleName", "LastName"],
+            }
         ],
     },
     "2": {
         "title": "Address of the assessee",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Address Line 1",
-            "Address Line 2",
-            "City / Town",
-            "District",
-            "State",
-            "Country",
-            "Pincode",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Address Detail",
+                "schema_key": "PartA.AddressDetail",
+                "type": "object",
+                "fallback_fields": [
+                    "AddrDetail1",
+                    "AddrDetail2",
+                    "CityOrTownOrDistrict",
+                    "LocalityOrArea",
+                    "PostOffice",
+                    "StateCode",
+                    "CountryCode",
+                    "PinCode",
+                ],
+            }
         ],
     },
     "3": {
         "title": "Permanent Account Number or Aadhaar Number",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "PAN",
-            "Aadhaar Number, if available",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "PAN / Aadhaar",
+                "schema_key": "PartA",
+                "type": "object",
+                "include_fields": ["PAN", "AadhaarCardNo"],
+                "fallback_fields": ["PAN", "AadhaarCardNo"],
+            }
         ],
     },
     "4": {
         "title": "Whether the assessee is liable to pay indirect tax like excise duty, service tax, sales tax, GST, customs duty, etc.",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Whether liable to pay indirect tax",
-            "Type of indirect tax",
-            "Registration number / GSTIN",
-            "Remarks",
+        "utility_sheet": "PartA / Form3cdIndirectTax",
+        "blocks": [
+            {
+                "name": "Indirect Tax Applicability",
+                "schema_key": "PartA",
+                "type": "object",
+                "include_fields": ["IndirectTaxFlag"],
+                "fallback_fields": ["IndirectTaxFlag"],
+            },
+            {
+                "name": "Indirect Tax Registration Details",
+                "schema_key": "Form3cdIndirectTax",
+                "type": "table",
+                "fallback_fields": ["IndirectTaxType", "StateCode", "OtherIndirectTaxType", "RegNo"],
+            },
         ],
     },
     "5": {
         "title": "Status of the assessee",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Status of assessee",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Status",
+                "schema_key": "PartA",
+                "type": "object",
+                "include_fields": ["Status"],
+                "fallback_fields": ["Status"],
+            }
         ],
     },
     "6": {
         "title": "Previous year",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Previous year from date",
-            "Previous year to date",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Previous Year",
+                "schema_key": "PartA",
+                "type": "object",
+                "include_fields": ["PartAStartDate", "PartAEndDate"],
+                "fallback_fields": ["PartAStartDate", "PartAEndDate"],
+            }
         ],
     },
     "7": {
         "title": "Assessment year",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Assessment year",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Assessment Year",
+                "schema_key": "PartA",
+                "type": "object",
+                "include_fields": ["AssessmentYear"],
+                "fallback_fields": ["AssessmentYear"],
+            }
         ],
     },
     "8": {
         "title": "Relevant clause of section 44AB under which audit has been conducted",
-        "utility_sheet": "Part_A",
-        "fields": [
-            "Relevant clause of section 44AB",
-            "Reason for applicability",
-            "Whether auto-filled from Tax Audit Applicability module",
+        "utility_sheet": "PartA",
+        "blocks": [
+            {
+                "name": "Section 44AB Clause",
+                "schema_key": "PartA.Clause",
+                "type": "table",
+                "fallback_fields": ["ClauseNo"],
+            },
+            {
+                "name": "TAAS Applicability Linkage",
+                "schema_key": "TAAS_AUDIT_APPLICABILITY",
+                "type": "object",
+                "fallback_fields": [
+                    "Relevant clause of section 44AB",
+                    "Reason for applicability",
+                    "Whether auto-filled from Tax Audit Applicability module",
+                ],
+            },
         ],
     },
     "9": {
         "title": "If firm or AOP, indicate names of partners or members and their profit sharing ratios",
-        "utility_sheet": "Clause_9",
-        "fields": [
-            "Name of partner / member",
-            "Profit sharing ratio",
-            "Remarks",
+        "utility_sheet": "Form3cdFirmAopDetailNew / Form3cdChangeInPartners",
+        "blocks": [
+            {
+                "name": "Current Profit Sharing Ratio",
+                "schema_key": "Form3cdFirmAopDetailNew.Form3cdFirmAopDetailPK",
+                "type": "table",
+                "fallback_fields": ["ChangeType", "FirmAopDesc", "FirmAopPerc"],
+            },
+            {
+                "name": "Change in Partners / Members",
+                "schema_key": "Form3cdChangeInPartners",
+                "type": "table",
+                "fallback_fields": [
+                    "DateOfChange",
+                    "NameOfPartner",
+                    "TypeOfChange",
+                    "OldProfShareRatio",
+                    "NewProfShareRatio",
+                    "Remarks",
+                ],
+            },
         ],
     },
     "10": {
-        "title": "Nature of business or profession",
-        "utility_sheet": "Clause_10",
-        "fields": [
-            "Nature of business or profession",
-            "Sector / activity code",
-            "Whether any change in nature of business or profession",
-            "Details of change, if any",
+        "title": "Nature of business or profession and change therein",
+        "utility_sheet": "F3cdFirmAopDtlNatOfBusiness / F3cdFirmAopDtlChangeInNature",
+        "blocks": [
+            {
+                "name": "Nature of Business / Profession",
+                "schema_key": "F3cdFirmAopDtlNatOfBusiness.Form3cdFirmAopDetailPK",
+                "type": "table",
+                "fallback_fields": ["ChangeType", "Sector", "FirmAopDesc"],
+            },
+            {
+                "name": "Change in Nature of Business / Profession",
+                "schema_key": "F3cdFirmAopDtlChangeInNature.Form3cdFirmAopDetailPK",
+                "type": "table",
+                "fallback_fields": ["ChangeType", "FirmAopBuss", "Sector", "FirmAopDesc"],
+            },
         ],
     },
     "11": {
         "title": "Books of account prescribed, maintained and examined",
-        "utility_sheet": "Clause_11",
-        "fields": [
-            "Whether books of account are prescribed under section 44AA",
-            "List of books prescribed",
-            "List of books maintained",
-            "Address where books are kept",
-            "Whether books examined",
-            "Remarks",
+        "utility_sheet": "Form3cdBooksOfAccLst / Form3cdBooksOfAccLstAddress",
+        "blocks": [
+            {
+                "name": "Books of Account Maintained / Examined",
+                "schema_key": "Form3cdBooksOfAccLst",
+                "type": "table",
+                "fallback_fields": ["BooksOfAccount", "WhetherExamined", "Remarks"],
+            },
+            {
+                "name": "Address where Books are Kept",
+                "schema_key": "Form3cdBooksOfAccLstAddress",
+                "type": "table",
+                "fallback_fields": ["Address", "Remarks"],
+            },
         ],
     },
     "12": {
         "title": "Whether profit and loss account includes profits assessable on presumptive basis",
-        "utility_sheet": "Clause_12",
-        "fields": [
-            "Whether profits assessable on presumptive basis are included",
-            "Section under which presumptive income is computed",
-            "Amount of presumptive income",
-            "Remarks",
+        "utility_sheet": "Form3cdProfGainsPresum",
+        "blocks": [
+            {
+                "name": "Presumptive Income Details",
+                "schema_key": "Form3cdProfGainsPresum",
+                "type": "table",
+                "fallback_fields": ["Section", "Amount", "Remarks"],
+            }
         ],
     },
     "13": {
-        "title": "Method of accounting employed",
-        "utility_sheet": "Clause_13",
-        "fields": [
-            "Method of accounting employed",
-            "Whether there is any change in method of accounting",
-            "Effect of change on profit or loss",
-            "ICDS compliance details",
-            "Deviation from ICDS, if any",
+        "title": "Method of accounting employed and ICDS disclosure",
+        "utility_sheet": "Form3cdChngMethAccVal / Form3cdDisclVal",
+        "blocks": [
+            {
+                "name": "Method of Accounting",
+                "schema_key": "Form3cdChngMethAccDtl",
+                "type": "object",
+                "fallback_fields": ["MethodOfAccounting", "Remarks"],
+            },
+            {
+                "name": "Change in Method of Accounting",
+                "schema_key": "Form3cdChngMethAccValChange",
+                "type": "object",
+                "fallback_fields": ["ChangeInMethod", "EffectOnProfit", "Remarks"],
+            },
+            {
+                "name": "ICDS / Accounting Standard Disclosure",
+                "schema_key": "Form3cdChngMethAccVal",
+                "type": "table",
+                "fallback_fields": ["ICDS", "Disclosure", "Amount", "Remarks"],
+            },
+            {
+                "name": "Disclosure of Valuation",
+                "schema_key": "Form3cdDisclVal",
+                "type": "table",
+                "fallback_fields": ["Particulars", "Amount", "Remarks"],
+            },
         ],
     },
     "14": {
         "title": "Method of valuation of closing stock",
-        "utility_sheet": "Clause_14",
-        "fields": [
-            "Method of valuation of closing stock",
-            "Whether there is any deviation from prescribed method",
-            "Effect of deviation on profit or loss",
-            "Remarks",
+        "utility_sheet": "MethodValCS",
+        "blocks": [
+            {
+                "name": "Closing Stock Valuation",
+                "schema_key": "MethodValCS",
+                "type": "object",
+                "fallback_fields": [
+                    "MethodOfValuation",
+                    "DeviationFromPrescribedMethod",
+                    "EffectOnProfit",
+                    "Remarks",
+                ],
+            }
         ],
     },
     "15": {
         "title": "Capital asset converted into stock-in-trade",
-        "utility_sheet": "Clause_15",
-        "fields": [
-            "Description of capital asset",
-            "Date of acquisition",
-            "Cost of acquisition",
-            "Amount at which converted into stock-in-trade",
-            "Remarks",
+        "utility_sheet": "Form3cdCapAsstSit",
+        "blocks": [
+            {
+                "name": "Capital Asset Converted into Stock-in-trade",
+                "schema_key": "Form3cdCapAsstSit",
+                "type": "table",
+                "fallback_fields": [
+                    "DescriptionOfCapitalAsset",
+                    "DateOfAcquisition",
+                    "CostOfAcquisition",
+                    "AmountAtWhichConverted",
+                    "Remarks",
+                ],
+            }
         ],
     },
     "16": {
         "title": "Amounts not credited to profit and loss account",
-        "utility_sheet": "Clause_16",
-        "fields": [
-            "Items falling within section 28",
-            "Pro forma credits, drawbacks, refunds of duty, customs, excise, GST, etc.",
-            "Escalation claims accepted during the previous year",
-            "Any other item of income",
-            "Capital receipt, if any",
-            "Remarks",
+        "utility_sheet": "Form3cdAmtNotCredit / Form3cdDrawbackRefundetc",
+        "blocks": [
+            {
+                "name": "Amounts not credited to Profit and Loss Account",
+                "schema_key": "Form3cdAmtNotCredit",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
+            {
+                "name": "Drawback / Refund / Credits",
+                "schema_key": "Form3cdDrawbackRefundetc",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
         ],
     },
     "17": {
         "title": "Transfer of land or building or both under section 43CA or 50C",
-        "utility_sheet": "Clause_17",
-        "fields": [
-            "Details of property transferred",
-            "Consideration received or accrued",
-            "Value adopted or assessed or assessable",
-            "Whether section 43CA / 50C applicable",
-            "Remarks",
+        "utility_sheet": "Form3cdLandBuildProperty",
+        "blocks": [
+            {
+                "name": "Land / Building Transfer",
+                "schema_key": "Form3cdLandBuildProperty",
+                "type": "table",
+                "fallback_fields": [
+                    "DetailsOfProperty",
+                    "ConsiderationReceived",
+                    "ValueAdoptedOrAssessed",
+                    "Remarks",
+                ],
+            }
         ],
     },
     "18": {
         "title": "Depreciation allowable under the Income-tax Act",
-        "utility_sheet": "Clause_18",
-        "fields": [
-            "Description of asset / block of asset",
-            "Rate of depreciation",
-            "Opening WDV",
-            "Additions",
-            "Deletions",
-            "Depreciation allowable",
-            "Closing WDV",
-            "Remarks",
+        "utility_sheet": "Form3cdDeprAllw",
+        "blocks": [
+            {
+                "name": "Depreciation Allowable",
+                "schema_key": "Form3cdDeprAllw",
+                "type": "table",
+                "fallback_fields": [
+                    "BlockOfAsset",
+                    "RateOfDepreciation",
+                    "OpeningWDV",
+                    "Additions",
+                    "Deletions",
+                    "DepreciationAllowable",
+                    "ClosingWDV",
+                    "Remarks",
+                ],
+            }
         ],
     },
     "19": {
-        "title": "Amounts admissible under sections 32AC, 33AB, 33ABA, 35, 35ABB, 35AD, 35CCA, 35CCB, 35CCC, 35CCD, etc.",
-        "utility_sheet": "Clause_19",
-        "fields": [
-            "Section",
-            "Amount debited to profit and loss account",
-            "Amount admissible",
-            "Remarks",
+        "title": "Amounts admissible under specified sections",
+        "utility_sheet": "Form3cdDebitPlTotAllw",
+        "blocks": [
+            {
+                "name": "Deductions / Allowances Admissible",
+                "schema_key": "Form3cdDebitPlTotAllw",
+                "type": "table",
+                "fallback_fields": ["Section", "AmountDebitedToPL", "AmountAdmissible", "Remarks"],
+            }
         ],
     },
     "20": {
-        "title": "Employee contribution to welfare funds and details under section 36(1)(va)",
-        "utility_sheet": "Clause_20",
-        "fields": [
-            "Nature of fund",
-            "Sum received from employees",
-            "Due date for payment",
-            "Actual date of payment",
-            "Amount paid",
-            "Remarks",
+        "title": "Bonus / commission and employee contribution to welfare funds",
+        "utility_sheet": "Form3cdEmpBonusComm / Form3cdEmpPfSuperann",
+        "blocks": [
+            {
+                "name": "Bonus / Commission to Employees",
+                "schema_key": "Form3cdEmpBonusComm",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
+            {
+                "name": "Employee Contribution to Welfare Funds",
+                "schema_key": "Form3cdEmpPfSuperann",
+                "type": "table",
+                "fallback_fields": [
+                    "NatureOfFund",
+                    "SumReceivedFromEmployees",
+                    "DueDate",
+                    "ActualDateOfPayment",
+                    "AmountPaid",
+                    "Remarks",
+                ],
+            },
         ],
     },
     "21": {
-        "title": "Amounts inadmissible under section 40, 40A and other disallowances",
-        "utility_sheet": "Clause_21",
-        "fields": [
-            "Nature of payment / expenditure",
-            "Amount debited to profit and loss account",
-            "Amount inadmissible",
-            "Relevant section",
-            "Remarks",
+        "title": "Amounts inadmissible under sections 40, 40A and other disallowances",
+        "utility_sheet": "Form3cdDebPLExpnditure / Form3cdAmtInadm40A / related blocks",
+        "blocks": [
+            {
+                "name": "Expenditure Debited to P&L - Disallowance",
+                "schema_key": "Form3cdDebPLExpnditure",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Section", "Remarks"],
+            },
+            {
+                "name": "Amount Inadmissible under Section 40(a)",
+                "schema_key": "Form3cdAmtInadm40A",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause iC",
+                "schema_key": "Form3cdAmtInadm40ASubClauseiC",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause iia",
+                "schema_key": "Form3cdAmtInadm40ASubClauseiia",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause iib",
+                "schema_key": "Form3cdAmtInadm40ASubClauseiib",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause iii",
+                "schema_key": "Form3cdAmtInadm40ASubClauseiii",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause iv",
+                "schema_key": "Form3cdAmtInadm40ASubClauseiv",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "40A Sub-Clause v",
+                "schema_key": "Form3cdAmtInadm40ASubClausev",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Remarks"],
+            },
+            {
+                "name": "Amount Debited / Other Disallowances",
+                "schema_key": "Form3cdAmtInadm40AAmtDebit",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
+            {
+                "name": "Section 40A(3) Income / Expenditure",
+                "schema_key": "Form3cdIncomeUnderSec40A_3",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Expenditure under Section 40A(3)",
+                "schema_key": "ExpendSec40A_3",
+                "type": "table",
+                "fallback_fields": ["Name", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Other Expenditure",
+                "schema_key": "Form3cdExpOth",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
+            {
+                "name": "Other Inadmissible Amounts",
+                "schema_key": "Form3cdInadm",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
         ],
     },
     "22": {
         "title": "Amount of interest inadmissible under the Micro, Small and Medium Enterprises Development Act",
-        "utility_sheet": "Clause_22",
-        "fields": [
-            "Amount of interest inadmissible",
-            "MSME vendor details",
-            "Remarks",
+        "utility_sheet": "Form3cdInadm / MSME",
+        "blocks": [
+            {
+                "name": "MSME Interest Inadmissible",
+                "schema_key": "Form3cdInadm",
+                "type": "table",
+                "fallback_fields": ["MSMEVendorName", "AmountOfInterestInadmissible", "Remarks"],
+            }
         ],
     },
     "23": {
         "title": "Payments to persons specified under section 40A(2)(b)",
-        "utility_sheet": "Clause_23",
-        "fields": [
-            "Name of related party",
-            "Relationship",
-            "Nature of payment",
-            "Amount paid",
-            "Reasonableness check",
-            "Remarks",
+        "utility_sheet": "Form3cdPymtSec40a2bDetail",
+        "blocks": [
+            {
+                "name": "Related Party Payments",
+                "schema_key": "Form3cdPymtSec40a2bDetail",
+                "type": "table",
+                "fallback_fields": [
+                    "NameOfRelatedParty",
+                    "Relation",
+                    "NatureOfPayment",
+                    "Amount",
+                    "ReasonablenessCheck",
+                    "Remarks",
+                ],
+            }
         ],
     },
     "24": {
-        "title": "Amounts deemed to be profits and gains under section 32AC / 33AB / 33ABA / 33AC",
-        "utility_sheet": "Clause_24",
-        "fields": [
-            "Section",
-            "Amount deemed as profits and gains",
-            "Remarks",
+        "title": "Amounts deemed to be profits and gains",
+        "utility_sheet": "Form3cdProfGainsTax",
+        "blocks": [
+            {
+                "name": "Deemed Profits and Gains",
+                "schema_key": "Form3cdProfGainsTax",
+                "type": "table",
+                "fallback_fields": ["Section", "Amount", "Remarks"],
+            }
         ],
     },
     "25": {
         "title": "Amount of profit chargeable to tax under section 41",
-        "utility_sheet": "Clause_25",
-        "fields": [
-            "Description of amount",
-            "Amount chargeable under section 41",
-            "Remarks",
+        "utility_sheet": "Form3cdProfGainsTaxSec41",
+        "blocks": [
+            {
+                "name": "Section 41 Profits",
+                "schema_key": "Form3cdProfGainsTaxSec41",
+                "type": "table",
+                "fallback_fields": ["Description", "AmountChargeable", "Remarks"],
+            }
         ],
     },
     "26": {
         "title": "Liabilities covered under section 43B",
-        "utility_sheet": "Clause_26",
-        "fields": [
-            "Nature of liability",
-            "Amount payable",
-            "Due date",
-            "Actual date of payment",
-            "Whether paid before due date",
-            "Amount allowable",
-            "Amount disallowable",
-            "Remarks",
+        "utility_sheet": "Form3cdUnpaidStrySec43b",
+        "blocks": [
+            {
+                "name": "Section 43B Statutory Liabilities",
+                "schema_key": "Form3cdUnpaidStrySec43b",
+                "type": "table",
+                "fallback_fields": [
+                    "NatureOfLiability",
+                    "Amount",
+                    "DueDate",
+                    "ActualDateOfPayment",
+                    "WhetherPaidBeforeDueDate",
+                    "AmountAllowable",
+                    "AmountDisallowable",
+                    "Remarks",
+                ],
+            },
+            {
+                "name": "Section 43B Additional Block 1",
+                "schema_key": "Form3cdUnpaidStrySec43b1",
+                "type": "table",
+                "fallback_fields": ["NatureOfLiability", "Amount", "DueDate", "ActualDateOfPayment", "Remarks"],
+            },
+            {
+                "name": "Section 43B Additional Block 2",
+                "schema_key": "Form3cdUnpaidStrySec43b2",
+                "type": "table",
+                "fallback_fields": ["NatureOfLiability", "Amount", "DueDate", "ActualDateOfPayment", "Remarks"],
+            },
+            {
+                "name": "Section 43B Additional Block 3",
+                "schema_key": "Form3cdUnpaidStrySec43b3",
+                "type": "table",
+                "fallback_fields": ["NatureOfLiability", "Amount", "DueDate", "ActualDateOfPayment", "Remarks"],
+            },
         ],
     },
     "27": {
         "title": "CENVAT / GST credits and prior period items",
-        "utility_sheet": "Clause_27",
-        "fields": [
-            "Details of CENVAT / GST credit",
-            "Treatment in books",
-            "Prior period income",
-            "Prior period expenses",
-            "Remarks",
+        "utility_sheet": "Form3cdTaxPassedThrPl / Form3cdModvat / Form3cdIncExpPriorPlAcc",
+        "blocks": [
+            {
+                "name": "Tax Passed through P&L",
+                "schema_key": "Form3cdTaxPassedThrPl",
+                "type": "object",
+                "fallback_fields": ["Amount", "Remarks"],
+            },
+            {
+                "name": "MODVAT / CENVAT / GST Credit",
+                "schema_key": "Form3cdModvat",
+                "type": "table",
+                "fallback_fields": ["Nature", "Opening", "CreditAvailed", "CreditUtilised", "Closing", "Remarks"],
+            },
+            {
+                "name": "Prior Period Income / Expense",
+                "schema_key": "Form3cdIncExpPriorPlAcc",
+                "type": "table",
+                "fallback_fields": ["Nature", "Amount", "Remarks"],
+            },
         ],
     },
     "28": {
         "title": "Shares received without consideration or for inadequate consideration under section 56(2)(viia)",
-        "utility_sheet": "Clause_28",
-        "fields": [
-            "Name of company whose shares are received",
-            "Number of shares",
-            "Fair market value",
-            "Consideration paid",
-            "Amount taxable",
-            "Remarks",
+        "utility_sheet": "Form3cdSec562viia",
+        "blocks": [
+            {
+                "name": "Section 56(2)(viia)",
+                "schema_key": "Form3cdSec562viia",
+                "type": "table",
+                "fallback_fields": ["NameOfCompany", "NoOfShares", "FairMarketValue", "ConsiderationPaid", "AmountTaxable", "Remarks"],
+            }
         ],
     },
     "29": {
         "title": "Income from issue of shares in excess of fair market value under section 56(2)(viib)",
-        "utility_sheet": "Clause_29",
-        "fields": [
-            "Nature of shares issued",
-            "Consideration received",
-            "Fair market value",
-            "Excess amount taxable",
-            "Remarks",
+        "utility_sheet": "Form3cdSec562viib",
+        "blocks": [
+            {
+                "name": "Section 56(2)(viib)",
+                "schema_key": "Form3cdSec562viib",
+                "type": "table",
+                "fallback_fields": ["NatureOfShares", "ConsiderationReceived", "FairMarketValue", "ExcessAmountTaxable", "Remarks"],
+            }
         ],
     },
     "29A": {
         "title": "Income chargeable under section 56(2)(ix)",
-        "utility_sheet": "Clause_29A",
-        "fields": [
-            "Nature of income",
-            "Amount chargeable",
-            "Remarks",
+        "utility_sheet": "Form3cdSec29IncOtherSourcesAb",
+        "blocks": [
+            {
+                "name": "Section 56(2)(ix)",
+                "schema_key": "Form3cdSec29IncOtherSourcesAb",
+                "type": "table",
+                "fallback_fields": ["NatureOfIncome", "AmountChargeable", "Remarks"],
+            }
         ],
     },
     "29B": {
         "title": "Income chargeable under section 56(2)(x)",
-        "utility_sheet": "Clause_29B",
-        "fields": [
-            "Nature of receipt",
-            "Amount / value received",
-            "Amount chargeable",
-            "Remarks",
+        "utility_sheet": "Form3cdSec29IncOtherSourcesBb",
+        "blocks": [
+            {
+                "name": "Section 56(2)(x)",
+                "schema_key": "Form3cdSec29IncOtherSourcesBb",
+                "type": "table",
+                "fallback_fields": ["NatureOfReceipt", "AmountOrValueReceived", "AmountChargeable", "Remarks"],
+            }
         ],
     },
     "30": {
         "title": "Amount borrowed on hundi or repayment otherwise than through account payee cheque",
-        "utility_sheet": "Clause_30",
-        "fields": [
-            "Name of lender / borrower",
-            "Amount borrowed / repaid",
-            "Mode of transaction",
-            "Remarks",
+        "utility_sheet": "Form3cdSec69d",
+        "blocks": [
+            {
+                "name": "Section 69D Hundi",
+                "schema_key": "Form3cdSec69d",
+                "type": "table",
+                "fallback_fields": ["Name", "AmountBorrowedOrRepaid", "Mode", "Remarks"],
+            }
         ],
     },
     "30A": {
         "title": "Primary adjustment to transfer price under section 92CE",
-        "utility_sheet": "Clause_30A",
-        "fields": [
-            "Whether primary adjustment made",
-            "Amount of primary adjustment",
-            "Whether excess money repatriated",
-            "Remarks",
+        "utility_sheet": "Form3cdSec92CE",
+        "blocks": [
+            {
+                "name": "Section 92CE",
+                "schema_key": "Form3cdSec92CE",
+                "type": "table",
+                "fallback_fields": ["WhetherPrimaryAdjustmentMade", "AmountOfPrimaryAdjustment", "WhetherRepatriated", "Remarks"],
+            }
         ],
     },
     "30B": {
         "title": "Limitation on interest deduction under section 94B",
-        "utility_sheet": "Clause_30B",
-        "fields": [
-            "Amount of expenditure by way of interest",
-            "EBITDA",
-            "Amount of interest disallowable",
-            "Remarks",
+        "utility_sheet": "Form3cdIncurredExpenditure",
+        "blocks": [
+            {
+                "name": "Section 94B Interest Limitation",
+                "schema_key": "Form3cdIncurredExpenditure",
+                "type": "table",
+                "fallback_fields": ["InterestExpenditure", "EBITDA", "InterestDisallowable", "Remarks"],
+            }
         ],
     },
     "30C": {
         "title": "Impermissible avoidance arrangement under GAAR",
-        "utility_sheet": "Clause_30C",
-        "fields": [
-            "Whether arrangement is impermissible avoidance arrangement",
-            "Nature of arrangement",
-            "Tax benefit arising",
-            "Remarks",
+        "utility_sheet": "Form3cdImpermissibleSec96",
+        "blocks": [
+            {
+                "name": "Section 96 Impermissible Arrangement",
+                "schema_key": "Form3cdImpermissibleSec96",
+                "type": "table",
+                "fallback_fields": ["NatureOfArrangement", "TaxBenefit", "Remarks"],
+            }
         ],
     },
     "31": {
         "title": "Loans, deposits, specified sums and specified advances",
-        "utility_sheet": "Clause_31",
-        "fields": [
-            "Name of party",
-            "PAN of party",
-            "Amount accepted / repaid",
-            "Mode of acceptance / repayment",
-            "Whether by account payee cheque / bank draft / ECS / prescribed mode",
-            "Remarks",
+        "utility_sheet": "Form3cdAmtSec269ssDetail / 269SS / 269ST / 269T",
+        "blocks": [
+            {
+                "name": "Section 269SS Amount Details",
+                "schema_key": "Form3cdAmtSec269ssDetail",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269SS Party Details",
+                "schema_key": "Form3cdSec269SSDtls",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269ST 31ba",
+                "schema_key": "Form3cdSec269ST31ba",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269ST 31bb",
+                "schema_key": "Form3cdSec269ST31bb",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269ST 31bc",
+                "schema_key": "Form3cdSec269ST31bc",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269ST 31bd",
+                "schema_key": "Form3cdSec269ST31bd",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269T Amount Details",
+                "schema_key": "Form3cdAmtSec269tDetail",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269T Details",
+                "schema_key": "Form3cdSec269TDtls",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
+            {
+                "name": "Section 269T New Details",
+                "schema_key": "Form3cdSec269TNewDtls",
+                "type": "table",
+                "fallback_fields": ["Name", "PAN", "Amount", "Mode", "Remarks"],
+            },
         ],
     },
     "32": {
         "title": "Brought forward loss or depreciation allowance",
-        "utility_sheet": "Clause_32",
-        "fields": [
-            "Assessment year",
-            "Nature of loss / allowance",
-            "Amount as returned",
-            "Amount as assessed",
-            "Remarks",
+        "utility_sheet": "Form3cdBflDa / Form3cdSpecloss73 / Form3cdSpec73A / Form3cdSpecdeemdBus73",
+        "blocks": [
+            {
+                "name": "Brought Forward Loss / Depreciation",
+                "schema_key": "Form3cdBflDa",
+                "type": "table",
+                "fallback_fields": ["AssessmentYear", "NatureOfLoss", "AmountAsReturned", "AmountAsAssessed", "Remarks"],
+            },
+            {
+                "name": "Speculative Loss Section 73",
+                "schema_key": "Form3cdSpecloss73",
+                "type": "object",
+                "fallback_fields": ["Amount", "Remarks"],
+            },
+            {
+                "name": "Specified Business Loss Section 73A",
+                "schema_key": "Form3cdSpec73A",
+                "type": "object",
+                "fallback_fields": ["Amount", "Remarks"],
+            },
+            {
+                "name": "Deemed Speculative Business Loss",
+                "schema_key": "Form3cdSpecdeemdBus73",
+                "type": "object",
+                "fallback_fields": ["Amount", "Remarks"],
+            },
         ],
     },
     "33": {
         "title": "Deductions admissible under Chapter VIA or Chapter III",
-        "utility_sheet": "Clause_33",
-        "fields": [
-            "Section",
-            "Amount claimed",
-            "Amount admissible",
-            "Remarks",
+        "utility_sheet": "Form3cdChapVIaChapIII",
+        "blocks": [
+            {
+                "name": "Chapter VIA / Chapter III Deductions",
+                "schema_key": "Form3cdChapVIaChapIII",
+                "type": "table",
+                "fallback_fields": ["Section", "AmountClaimed", "AmountAdmissible", "Remarks"],
+            }
         ],
     },
     "34": {
         "title": "TDS / TCS compliance",
-        "utility_sheet": "Clause_34",
-        "fields": [
-            "TAN",
-            "Nature of payment",
-            "Amount paid / credited",
-            "Tax deductible / collectible",
-            "Tax deducted / collected",
-            "Tax deposited",
-            "Due date",
-            "Date of payment",
-            "Remarks",
+        "utility_sheet": "Form3cdChapXVII / Form3cdTaxDedCollect / Form3cdSec2011A206C7",
+        "blocks": [
+            {
+                "name": "Chapter XVII-B / TDS Compliance",
+                "schema_key": "Form3cdChapXVII",
+                "type": "table",
+                "fallback_fields": ["TAN", "NatureOfPayment", "AmountPaidOrCredited", "TaxDeductible", "TaxDeducted", "TaxDeposited", "Remarks"],
+            },
+            {
+                "name": "TDS / TCS Deduction and Collection Details",
+                "schema_key": "Form3cdTaxDedCollect",
+                "type": "table",
+                "fallback_fields": ["TAN", "Section", "Amount", "TaxDeductedOrCollected", "TaxDeposited", "Remarks"],
+            },
+            {
+                "name": "Interest under Section 201(1A) / 206C(7)",
+                "schema_key": "Form3cdSec2011A206C7",
+                "type": "table",
+                "fallback_fields": ["TAN", "AmountOfInterest", "DateOfPayment", "Remarks"],
+            },
         ],
     },
     "35": {
         "title": "Trading concern / manufacturing concern quantitative details",
-        "utility_sheet": "Clause_35",
-        "fields": [
-            "Item name",
-            "Unit",
-            "Opening stock",
-            "Purchases / production",
-            "Sales / consumption",
-            "Closing stock",
-            "Shortage / excess",
-            "Remarks",
+        "utility_sheet": "Form3cdTradeRawProdDet",
+        "blocks": [
+            {
+                "name": "Quantitative Details",
+                "schema_key": "Form3cdTradeRawProdDet",
+                "type": "table",
+                "fallback_fields": ["ItemName", "Unit", "OpeningStock", "PurchasesOrProduction", "SalesOrConsumption", "ClosingStock", "ShortageOrExcess", "Remarks"],
+            }
         ],
     },
     "36": {
-        "title": "Dividend received under section 2(22)(e)",
-        "utility_sheet": "Clause_36",
-        "fields": [
-            "Amount deemed dividend",
-            "Name of company",
-            "Remarks",
+        "title": "Dividend / deemed dividend reporting",
+        "utility_sheet": "Form3cdDistribtedProf115O / Form3cdNatureOfDividend",
+        "blocks": [
+            {
+                "name": "Distributed Profits / Dividend",
+                "schema_key": "Form3cdDistribtedProf115O",
+                "type": "table",
+                "fallback_fields": ["Amount", "Date", "Remarks"],
+            },
+            {
+                "name": "Nature of Dividend",
+                "schema_key": "Form3cdNatureOfDividend",
+                "type": "table",
+                "fallback_fields": ["NatureOfDividend", "Amount", "Remarks"],
+            },
         ],
     },
     "36A": {
         "title": "Deemed income under section 2(24)(xviii)",
-        "utility_sheet": "Clause_36A",
-        "fields": [
-            "Nature of receipt",
-            "Amount deemed income",
-            "Remarks",
+        "utility_sheet": "Form3cd36BRecievedAmt",
+        "blocks": [
+            {
+                "name": "Amounts Received",
+                "schema_key": "Form3cd36BRecievedAmt",
+                "type": "table",
+                "fallback_fields": ["NatureOfReceipt", "Amount", "Remarks"],
+            }
         ],
     },
     "37": {
         "title": "Cost audit details",
-        "utility_sheet": "Clause_37",
-        "fields": [
-            "Whether cost audit was carried out",
-            "Details of disqualification or disagreement, if any",
-            "Remarks",
+        "utility_sheet": "CostAudit",
+        "blocks": [
+            {
+                "name": "Cost Audit",
+                "schema_key": "CostAudit",
+                "type": "object",
+                "fallback_fields": ["WhetherCostAuditCarriedOut", "DetailsOfDisqualificationOrDisagreement", "Remarks"],
+            }
         ],
     },
     "38": {
         "title": "Audit under Central Excise Act",
-        "utility_sheet": "Clause_38",
-        "fields": [
-            "Whether audit under Central Excise Act was carried out",
-            "Details of disqualification or disagreement, if any",
-            "Remarks",
+        "utility_sheet": "AuditExcise",
+        "blocks": [
+            {
+                "name": "Excise Audit",
+                "schema_key": "AuditExcise",
+                "type": "object",
+                "fallback_fields": ["WhetherAuditConducted", "DetailsOfDisqualificationOrDisagreement", "Remarks"],
+            }
         ],
     },
     "39": {
         "title": "Audit under section 72A of the Finance Act relating to valuation of taxable services",
-        "utility_sheet": "Clause_39",
-        "fields": [
-            "Whether audit was conducted",
-            "Details of disqualification or disagreement, if any",
-            "Remarks",
+        "utility_sheet": "AuditSec72",
+        "blocks": [
+            {
+                "name": "Audit under Section 72A",
+                "schema_key": "AuditSec72",
+                "type": "object",
+                "fallback_fields": ["WhetherAuditConducted", "DetailsOfDisqualificationOrDisagreement", "Remarks"],
+            }
         ],
     },
     "40": {
         "title": "Accounting ratios",
-        "utility_sheet": "Clause_40",
-        "fields": [
-            "Gross profit ratio",
-            "Net profit ratio",
-            "Stock turnover ratio",
-            "Material consumed / finished goods produced ratio",
-            "Remarks",
+        "utility_sheet": "Form3cdAccountingRatioCalculations",
+        "blocks": [
+            {
+                "name": "Accounting Ratio Calculations",
+                "schema_key": "Form3cdAccountingRatioCalculations",
+                "type": "object",
+                "fallback_fields": ["GrossProfitRatio", "NetProfitRatio", "StockTurnoverRatio", "MaterialConsumedRatio", "Remarks"],
+            }
         ],
     },
     "41": {
         "title": "Demand raised or refund issued under any tax laws other than Income-tax Act and Wealth-tax Act",
-        "utility_sheet": "Clause_41",
-        "fields": [
-            "Name of tax law",
-            "Demand / refund order details",
-            "Amount",
-            "Remarks",
+        "utility_sheet": "Form3cdRefundDmdPrevYr",
+        "blocks": [
+            {
+                "name": "Demand / Refund Details",
+                "schema_key": "Form3cdRefundDmdPrevYr",
+                "type": "table",
+                "fallback_fields": ["NameOfTaxLaw", "DemandOrRefundOrderDetails", "Amount", "Remarks"],
+            }
         ],
     },
     "42": {
         "title": "Form 61, Form 61A and Form 61B reporting",
-        "utility_sheet": "Clause_42",
-        "fields": [
-            "Whether liable to furnish Form 61 / 61A / 61B",
-            "Income-tax Department reporting entity identification number",
-            "Type of form",
-            "Due date",
-            "Date of furnishing",
-            "Remarks",
+        "utility_sheet": "Form3cdFurnishStatemnt",
+        "blocks": [
+            {
+                "name": "Statement Furnishing Details",
+                "schema_key": "Form3cdFurnishStatemnt",
+                "type": "table",
+                "fallback_fields": ["FormType", "DueDate", "DateOfFurnishing", "Remarks"],
+            }
         ],
     },
     "43": {
         "title": "Country-by-country reporting under section 286",
-        "utility_sheet": "Clause_43",
-        "fields": [
-            "Whether section 286 applicable",
-            "Parent entity details",
-            "Alternate reporting entity details",
-            "Date of furnishing report",
-            "Remarks",
+        "utility_sheet": "Form3cdFurnishAltReportSec286 / ExpectedDate",
+        "blocks": [
+            {
+                "name": "Section 286 Reporting",
+                "schema_key": "Form3cdFurnishAltReportSec286",
+                "type": "object",
+                "fallback_fields": ["WhetherSection286Applicable", "ParentEntityDetails", "AlternateReportingEntityDetails", "Remarks"],
+            },
+            {
+                "name": "Expected Date",
+                "schema_key": "ExpectedDate",
+                "type": "object",
+                "fallback_fields": ["ExpectedDate", "Remarks"],
+            },
         ],
     },
     "44": {
         "title": "Break-up of total expenditure of entities registered or not registered under GST",
-        "utility_sheet": "Clause_44",
-        "fields": [
-            "Total amount of expenditure",
-            "Expenditure relating to entities registered under GST",
-            "Expenditure relating to entities not registered under GST",
-            "Exempt goods / services",
-            "Composition scheme entities",
-            "Other registered entities",
-            "Remarks",
+        "utility_sheet": "Form3cdBreakUpGST",
+        "blocks": [
+            {
+                "name": "GST Expenditure Break-up",
+                "schema_key": "Form3cdBreakUpGST",
+                "type": "table",
+                "fallback_fields": [
+                    "TotalAmountOfExpenditure",
+                    "ExpenditureRelatingToGSTRegisteredEntities",
+                    "ExpenditureRelatingToGSTUnregisteredEntities",
+                    "ExemptGoodsOrServices",
+                    "CompositionSchemeEntities",
+                    "OtherRegisteredEntities",
+                    "Remarks",
+                ],
+            }
         ],
     },
 }
@@ -596,20 +1027,48 @@ def get_clause_title(clause_no):
 
 def get_clause_sheet(clause_no):
     clause_no = str(clause_no)
-    return FORM_3CD_CLAUSES.get(clause_no, {}).get("utility_sheet", "")
+    return FORM_3CD_CLAUSES.get(str(clause_no), {}).get("utility_sheet", "")
 
 
 def get_clause_fields(clause_no):
-    clause_no = str(clause_no)
-    return FORM_3CD_CLAUSES.get(clause_no, {}).get("fields", [])
+    """
+    Backward-compatible function.
+    Returns combined fallback fields for old rendering/export logic.
+    """
+    clause = FORM_3CD_CLAUSES.get(str(clause_no), {})
+    fields = []
+
+    for block in clause.get("blocks", []):
+        for field in block.get("fallback_fields", []):
+            if field not in fields:
+                fields.append(field)
+
+    return fields
+
+
+def get_clause_schema_blocks(clause_no):
+    return FORM_3CD_CLAUSES.get(str(clause_no), {}).get("blocks", [])
 
 
 def get_tax_audit_form_title(audit_form):
     return TAX_AUDIT_FORMS.get(audit_form, TAX_AUDIT_FORMS["Not Applicable"]).get("title", "")
 
 
+def get_tax_audit_form_description(audit_form):
+    return TAX_AUDIT_FORMS.get(audit_form, TAX_AUDIT_FORMS["Not Applicable"]).get("description", "")
+
+
 def get_tax_audit_form_code(audit_form):
     return TAX_AUDIT_FORMS.get(audit_form, TAX_AUDIT_FORMS["Not Applicable"]).get("code", "")
+
+
+def get_tax_audit_schema_file_name(audit_form):
+    return TAX_AUDIT_FORMS.get(audit_form, TAX_AUDIT_FORMS["Not Applicable"]).get("schema_file", "")
+
+
+def get_tax_audit_root_keys(audit_form):
+    form = TAX_AUDIT_FORMS.get(audit_form, TAX_AUDIT_FORMS["Not Applicable"])
+    return form.get("root", ""), form.get("inner_root", "")
 
 
 def is_valid_tax_audit_form(audit_form):
@@ -617,7 +1076,7 @@ def is_valid_tax_audit_form(audit_form):
 
 
 # ---------------------------------------------------------
-# FALLBACK SIMPLE FIELDS
+# FALLBACK SIMPLE REPORT FIELDS
 # Used only if structured renderer is not active
 # ---------------------------------------------------------
 
@@ -671,7 +1130,7 @@ def get_tax_audit_form_fields(audit_form):
 
 
 # ---------------------------------------------------------
-# COMMON STRUCTURED FIELDS
+# COMMON STRUCTURED FIELDS FOR 3CA / 3CB
 # ---------------------------------------------------------
 
 def get_common_assessee_fields():
@@ -764,10 +1223,6 @@ def get_tax_audit_form_field_schema(audit_form):
     Structured field schema for Form 3CA and Form 3CB.
     This does not change Form 3CD clause fields.
     """
-
-    # ---------------------------------------------------------
-    # FORM 3CA
-    # ---------------------------------------------------------
 
     if audit_form == "Form 3CA-3CD":
         return [
@@ -932,10 +1387,6 @@ def get_tax_audit_form_field_schema(audit_form):
                 "fields": get_common_signing_fields(),
             },
         ]
-
-    # ---------------------------------------------------------
-    # FORM 3CB
-    # ---------------------------------------------------------
 
     if audit_form == "Form 3CB-3CD":
         return [
