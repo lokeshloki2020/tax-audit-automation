@@ -25,13 +25,25 @@
                 },
                 "PartA": {
                     "AssesseeName": {
+                        "FirstName": "loki",
+                        "MiddleName": "loki",
                         "LastName": "Poojamani"
                     },
                     "AddressDetail": {
-                        "CountryCode": "91"
+                        "AddrDetail1": "Plot No 12, First Floor",
+                        "AddrDetail2": "JNTU Road",
+                        "CityOrTownOrDistrict": "Hyderabad",
+                        "LocalityOrArea": "Kukatpally",
+                        "LocalityOrAreaName": "Kukatpally",
+                        "PostOffice": "Kukatpally",
+                        "PostOfficeName": "Kukatpally",
+                        "StateCode": "36",
+                        "CountryCode": "91",
+                        "PinCode": "500072"
                     },
-                    "PAN": "HSHSH5252F",
+                    "PAN": "ABCCG1234D",
                     "IndirectTaxFlag": "Y",
+                    "Status": 1,
                     "PartAStartDate": "2025-04-01",
                     "PartAEndDate": "2026-03-31",
                     "AssessmentYear": "2026-27",
@@ -43,25 +55,52 @@
                     ],
                     "Clause": [
                         {
-                            "ClauseNo": "44ABe"
+                            "ClauseNo": "44ABa"
                         }
                     ]
                 },
                 "OtherInformation1": {
+                    "FirstName": "Pavan",
+                    "LastName": "Kumar",
+                    "AddrDetail1": "Manjeera Majestic Commercial",
+                    "AddrDetail2": "JNTU Road",
+                    "CityOrTownOrDistrict": "Hyderabad",
+                    "LocalityOrArea": "Kukatpally",
+                    "LocalityOrAreaName": "Kukatpally",
+                    "PostOffice": "Kukatpally",
+                    "PostOfficeName": "Kukatpally",
+                    "StateCode": "36",
                     "CountryCode": "91",
+                    "PinCode": "500072",
+                    "Place": "Hyderabad",
                     "IpAddress": "IpAddress",
-                    "Date": "2026-05-21"
+                    "Date": "2026-05-21",
+                    "MembershipNo": "123456",
+                    "FirmRegNum": "012345S"
                 },
                 "Declaration": {
                     "Point1": {
                         "I_We1": "I",
                         "AssesseeName": {
+                            "FirstName": "loki",
+                            "MiddleName": "loki",
                             "LastName": "Poojamani"
                         },
                         "AddressDetail": {
-                            "CountryCode": "91"
+                            "AddrDetail1": "Plot No 12, First Floor",
+                            "AddrDetail2": "JNTU Road",
+                            "CityOrTownOrDistrict": "Hyderabad",
+                            "LocalityOrArea": "Kukatpally",
+                            "LocalityOrAreaName": "Kukatpally",
+                            "PostOffice": "Kukatpally",
+                            "PostOfficeName": "Kukatpally",
+                            "StateCode": "36",
+                            "CountryCode": "91",
+                            "PinCode": "500072"
                         },
+                        "PAN": "ABCCG1234D",
                         "Me_Us_Ms": "Me",
+                        "CA_FirmName": "Pavan & Co",
                         "Act": "14",
                         "I_We2": "I",
                         "My_Our_Their": "My",

@@ -6,20 +6,7 @@ Assessment Year: 2026-27
 Audit Form: Form 3CA-3CD
 JSON File: clients/Poojamani/AY 2026-27/Tax Report/income_tax_utility_3CA_3CD.json
 
-Pending / Missing Required Values:
-- Declaration.Point1.CA_FirmName
-- OtherInformation1.AddrDetail1
-- OtherInformation1.CityOrTownOrDistrict
-- OtherInformation1.LastName
-- OtherInformation1.MembershipNo
-- OtherInformation1.PinCode
-- OtherInformation1.Place
-- OtherInformation1.StateCode
-- PartA.AddressDetail.AddrDetail1
-- PartA.AddressDetail.CityOrTownOrDistrict
-- PartA.AddressDetail.PinCode
-- PartA.AddressDetail.StateCode
-- PartA.Status
+No major required-field gaps detected by TAAS basic validation.
 
 Important:
 This is a schema-structured utility export generated from TAAS saved data.

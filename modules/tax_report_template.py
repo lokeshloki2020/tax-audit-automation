@@ -1138,6 +1138,29 @@ def get_common_assessee_fields():
         {"name": "Assessee First Name", "label": "First Name", "type": "text", "default": "", "required": False},
         {"name": "Assessee Middle Name", "label": "Middle Name", "type": "text", "default": "", "required": False},
         {"name": "Assessee Last Name", "label": "Last Name", "type": "text", "default": "", "required": True},
+
+        {
+            "name": "Type / Status of Assessee",
+            "label": "Type / Status of Assessee",
+            "type": "select",
+            "options": [
+                "Individual",
+                "HUF",
+                "Firm",
+                "LLP",
+                "Company",
+                "Trust",
+                "AOP",
+                "Local Authority",
+                "Artificial Juridical Person",
+                "Co-operative Society",
+                "Co-operative Bank",
+                "Body of Individuals"
+            ],
+            "default": "Company",
+            "required": True,
+        },
+
         {
             "name": "Assessee Country Region",
             "label": "Country / Region",
@@ -1156,7 +1179,6 @@ def get_common_assessee_fields():
         {"name": "Assessee PAN", "label": "Permanent Account Number (PAN)", "type": "text", "default": "", "required": False},
         {"name": "Assessee Aadhaar", "label": "Aadhaar Number of the assessee, if available", "type": "text", "default": "", "required": False},
     ]
-
 
 def get_common_accountant_fields():
     return [
