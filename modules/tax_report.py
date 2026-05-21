@@ -588,6 +588,7 @@ def save_tax_report(client_name, ay, report_data):
 # APPLICABILITY LINKAGE
 # ---------------------------------------------------------
 
+
 def apply_applicability_to_report(report_data, applicability_data):
     audit_form = normalize_audit_form(applicability_data.get("audit_form", "Not Applicable"))
 
@@ -611,41 +612,10 @@ def apply_applicability_to_report(report_data, applicability_data):
 
     report_data["applicability"] = applicability_data
 
-    clause_8_existing = report_data["form_3cd"].get("8", {})
-    clause_8_fields = clause_8_existing.get("fields", {})
-
-    if applicability_data.get("section_reference"):
-        clause_8_fields.setdefault(
-            "Relevant clause of section 44AB",
-            applicability_data.get("section_reference", "")
-        )
-
-    if applicability_data.get("reason"):
-        clause_8_fields.setdefault(
-            "Reason for applicability",
-            applicability_data.get("reason", "")
-        )
-
-    clause_8_fields.setdefault(
-        "Whether auto-filled from Tax Audit Applicability module",
-        "Yes"
-    )
-
-    report_data["form_3cd"]["8"] = {
-        "title": get_clause_title("8"),
-        "utility_sheet": get_clause_sheet("8"),
-        "status": clause_8_existing.get("status", "In Progress"),
-        "remarks": clause_8_existing.get("remarks", "Auto-filled from Tax Audit Applicability module."),
-        "fields": clause_8_fields,
-        "blocks": clause_8_existing.get("blocks", {}),
-    }
-
+    # Clause 1 to 8 are populated separately into actual Income-tax schema blocks.
+    # No TAAS/internal linkage fields are written to the clause UI.
     return report_data
 
-
-# ---------------------------------------------------------
-# REPORT FORM FIELD RENDERER - 3CA / 3CB
-# ---------------------------------------------------------
 
 def render_structured_report_fields(audit_form, existing_fields, selected_client, selected_ay, form_code):
     updated_fields = {}
@@ -837,16 +807,46 @@ def build_table_column_config(fields):
     return config
 
 
+
+def is_user_visible_schema_block(block):
+    """
+    Keep only actual Income-tax schema blocks in the 3CD dialog.
+    Hide internal helper/TAAS linkage blocks from users.
+    """
+    block_name = str(block.get("name", "")).lower()
+    schema_key = str(block.get("schema_key", ""))
+
+    if schema_key.startswith("TAAS_"):
+        return False
+
+    if "taas" in block_name:
+        return False
+
+    if "linkage" in block_name:
+        return False
+
+    if "auto" in block_name and "populated" in block_name:
+        return False
+
+    return True
+
+
+def get_visible_clause_blocks(clause_no):
+    blocks = get_clause_schema_blocks(clause_no)
+
+    if not blocks:
+        return []
+
+    return [block for block in blocks if is_user_visible_schema_block(block)]
+
+
 def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client, selected_ay):
     schema_file = get_tax_audit_schema_file_name(audit_form)
     schema_status = load_tax_schema_cached(schema_file)
     schema = schema_status.get("schema", {}) if schema_status.get("loaded") else {}
 
-    blocks = get_clause_schema_blocks(clause_no)
-
+    blocks = get_visible_clause_blocks(clause_no)
     existing_blocks = existing_clause.get("blocks", {})
-
-    # Backward compatibility with old saved clause fields
     old_fields = existing_clause.get("fields", {})
 
     updated_blocks = {}
@@ -854,7 +854,6 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
 
     if not blocks:
         fallback_fields = get_clause_fields(clause_no)
-
         object_data = {}
 
         for field in fallback_fields:
@@ -866,7 +865,7 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
             )
             flattened_fields[field] = object_data[field]
 
-        updated_blocks["Fallback"] = {
+        updated_blocks["Clause Details"] = {
             "type": "object",
             "schema_key": "",
             "data": object_data
@@ -874,12 +873,7 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
 
         return updated_blocks, flattened_fields
 
-    if schema_status.get("loaded"):
-        st.markdown(
-            f'<span class="schema-chip">Schema loaded: {schema_status.get("path")}</span>',
-            unsafe_allow_html=True
-        )
-    else:
+    if not schema_status.get("loaded"):
         st.warning(schema_status.get("error", "Schema file not loaded. Fallback fields are being used."))
 
     for block_index, block in enumerate(blocks):
@@ -895,18 +889,18 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <div class="clause-help-box">
-            Utility schema key: <b>{schema_key}</b>
-        </div>
-        """, unsafe_allow_html=True)
-
         fields = get_schema_fields(
             schema=schema,
             schema_key=schema_key,
             include_fields=include_fields,
             fallback_fields=fallback_fields
         )
+
+        fields = [
+            field for field in fields
+            if not str(field.get("name", "")).startswith("TAAS_")
+            and str(field.get("name", "")) not in ["CsvDtls", "attachmentDocument"]
+        ]
 
         block_saved = existing_blocks.get(block_name, {})
 
@@ -957,7 +951,6 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
             if not isinstance(saved_data, dict):
                 saved_data = {}
 
-            # Backward compatibility: use old flat field if object data not saved.
             for field in fields:
                 field_name = field.get("name", "")
 
@@ -988,10 +981,6 @@ def render_clause_blocks(clause_no, existing_clause, audit_form, selected_client
 
     return updated_blocks, flattened_fields
 
-
-# ---------------------------------------------------------
-# EXPORT
-# ---------------------------------------------------------
 
 def flatten_report_form_rows(report_form, audit_form):
     rows = []
@@ -1502,9 +1491,8 @@ def get_client_database_row(client_name):
 
 
 # ---------------------------------------------------------
-# PHASE 1 AUTO-POPULATION
-# 3CA / 3CB basic report details + Form 3CD Clause 1 to 8
-# Source: Client Management + Tax Audit Applicability
+# PHASE 1 CLEAN AUTO-POPULATION
+# 3CA / 3CB basic report fields + 3CD Clause 1 to 8
 # ---------------------------------------------------------
 
 def client_row_value(client_row, column, default=""):
@@ -1535,19 +1523,6 @@ def client_row_first(client_row, columns, default=""):
 
 def value_is_blank(value):
     return str(value).strip() in ["", "None", "nan", "NaT"]
-
-
-def set_field_if_blank(fields, key, value):
-    if value_is_blank(value):
-        return
-
-    if key not in fields or value_is_blank(fields.get(key, "")):
-        fields[key] = value
-
-
-def force_set_field(fields, key, value):
-    if not value_is_blank(value):
-        fields[key] = value
 
 
 def build_client_full_address(client_row):
@@ -1604,13 +1579,11 @@ def count_branches(branch_details):
     if not branch_details:
         return "0"
 
-    # If user entered a number, keep it.
     try:
         return str(int(float(branch_details.replace(",", ""))))
     except Exception:
         pass
 
-    # Otherwise count non-empty lines / comma separated branch names.
     lines = [item.strip() for item in re.split(r"[\n,;]+", branch_details) if item.strip()]
     return str(len(lines)) if lines else "0"
 
@@ -1633,14 +1606,9 @@ def build_report_defaults_from_client_master(audit_form, client_name, ay, client
     )
 
     address_full = build_client_full_address(client_row)
-    books_address = client_row_first(
-        client_row,
-        ["Books Head Office Address"],
-        address_full,
-    )
+    books_address = client_row_first(client_row, ["Books Head Office Address"], address_full)
 
     branch_details = client_row_value(client_row, "Branch Details")
-    audited_under_other_law = client_row_value(client_row, "Audited Under Other Law", "No")
     law_under_which_audited = client_row_value(client_row, "Law Under Which Audited")
     statutory_auditor = client_row_value(client_row, "Statutory Auditor / Firm Name")
     statutory_audit_date = client_row_value(client_row, "Statutory Audit Report Date")
@@ -1665,7 +1633,7 @@ def build_report_defaults_from_client_master(audit_form, client_name, ay, client
     }
 
     if audit_form == "Form 3CA-3CD":
-        defaults = {
+        return {
             **common,
             "Declaration Type": "I",
             "Statutory Audit Conducted By": "me",
@@ -1677,8 +1645,9 @@ def build_report_defaults_from_client_master(audit_form, client_name, ay, client
             "Audited Statement Type": "Profit and loss account",
             "Audited Balance Sheet Date": py_end,
         }
-    elif audit_form == "Form 3CB-3CD":
-        defaults = {
+
+    if audit_form == "Form 3CB-3CD":
+        return {
             **common,
             "Declaration Type": "I",
             "Balance Sheet Date": get_balance_sheet_year_from_py_end(py_end, ay),
@@ -1687,10 +1656,8 @@ def build_report_defaults_from_client_master(audit_form, client_name, ay, client
             "Books Branches": count_branches(branch_details),
             "Profit Or Loss": "Profit",
         }
-    else:
-        defaults = common
 
-    return defaults
+    return common
 
 
 def apply_report_form_defaults_from_client_master(report_data, audit_form, client_name, ay, overwrite=False):
@@ -1703,13 +1670,7 @@ def apply_report_form_defaults_from_client_master(report_data, audit_form, clien
     report_data["report_form"].setdefault("fields", {})
 
     fields = report_data["report_form"].get("fields", {})
-
-    defaults = build_report_defaults_from_client_master(
-        audit_form=audit_form,
-        client_name=client_name,
-        ay=ay,
-        client_row=client_row,
-    )
+    defaults = build_report_defaults_from_client_master(audit_form, client_name, ay, client_row)
 
     changed = False
 
@@ -1730,94 +1691,137 @@ def apply_report_form_defaults_from_client_master(report_data, audit_form, clien
     return report_data, changed
 
 
-def build_phase1_clause_auto_data(client_name, ay, client_row, applicability_data):
+def build_phase1_schema_value_map(client_name, ay, client_row, applicability_data):
     py_start, py_end = get_client_py_dates(client_row, ay)
 
-    client_legal_name = client_row_first(
-        client_row,
-        ["Client Legal Name", "Last Name / Entity Name", "Client Name"],
-        client_name,
-    )
+    first_name = client_row_value(client_row, "First Name")
+    middle_name = client_row_value(client_row, "Middle Name")
+    last_name = client_row_first(client_row, ["Last Name / Entity Name", "Client Legal Name", "Client Name"], client_name)
 
-    address_full = build_client_full_address(client_row)
+    assessee_name = {
+        "FirstName": normalize_text(first_name, 25),
+        "MiddleName": normalize_text(middle_name, 25),
+        "LastName": normalize_text(last_name, 75),
+    }
+
+    address_detail = {
+        "AddrDetail1": normalize_text(client_row_value(client_row, "Flat / Door / Building"), 100),
+        "AddrDetail2": normalize_text(client_row_value(client_row, "Road / Street / Block / Sector"), 100),
+        "CityOrTownOrDistrict": normalize_text(client_row_value(client_row, "District / City"), 50),
+        "LocalityOrArea": normalize_text(client_row_value(client_row, "Area / Locality"), 50),
+        "LocalityOrAreaName": normalize_text(client_row_value(client_row, "Area / Locality"), 50),
+        "PostOffice": normalize_text(client_row_value(client_row, "Post Office"), 50),
+        "PostOfficeName": normalize_text(client_row_value(client_row, "Post Office"), 50),
+        "StateCode": normalize_state_code(client_row_value(client_row, "State Code")),
+        "CountryCode": normalize_country_code(client_row_value(client_row, "Country Code", "91")),
+        "PinCode": normalize_text(client_row_value(client_row, "PIN Code")),
+    }
 
     gstin = client_row_value(client_row, "GSTIN")
-    indirect_flag = client_row_value(client_row, "Indirect Tax Applicable", "Yes" if gstin else "No")
-    state_code = client_row_value(client_row, "GST State Code") or client_row_value(client_row, "State Code")
-
-    section_ref = normalize_section_44ab_clause_code(
-        applicability_data.get("section_reference", "")
-    ) or normalize_section_44ab_clause_code(
-        applicability_data.get("reason", "")
+    indirect_flag = normalize_yes_no(
+        client_row_value(client_row, "Indirect Tax Applicable", "Yes" if gstin else "No"),
+        default="Y" if gstin else "N"
     )
 
-    return {
-        "1": {
-            "fields": {
-                "Name of the assessee": client_legal_name,
-            },
-            "remarks": "Auto-populated from Client Management.",
-        },
-        "2": {
-            "fields": {
-                "Address Line 1": client_row_value(client_row, "Flat / Door / Building"),
-                "Address Line 2": client_row_value(client_row, "Road / Street / Block / Sector"),
-                "Area / Locality": client_row_value(client_row, "Area / Locality"),
-                "Post Office": client_row_value(client_row, "Post Office"),
-                "City / Town / District": client_row_value(client_row, "District / City"),
-                "State Code": client_row_value(client_row, "State Code"),
-                "Country Code": client_row_value(client_row, "Country Code", "91"),
-                "Pincode": client_row_value(client_row, "PIN Code"),
-                "Full Address": address_full,
-            },
-            "remarks": "Auto-populated from Client Management address details.",
-        },
-        "3": {
-            "fields": {
-                "PAN": client_row_value(client_row, "PAN").upper(),
-                "Aadhaar Number, if available": client_row_value(client_row, "Aadhaar"),
-            },
-            "remarks": "Auto-populated from Client Management PAN/Aadhaar details.",
-        },
-        "4": {
-            "fields": {
-                "Whether liable to pay indirect tax": indirect_flag,
-                "Type of indirect tax": "GST" if gstin else "",
-                "State Code": state_code,
-                "Registration number / GSTIN": gstin,
-                "Remarks": "Auto-populated from Client Management GST details.",
-            },
-            "remarks": "Auto-populated from Client Management GST/indirect tax details.",
-        },
-        "5": {
-            "fields": {
-                "Status of assessee": client_row_value(client_row, "Status of Assessee"),
-            },
-            "remarks": "Auto-populated from Client Management status of assessee.",
-        },
-        "6": {
-            "fields": {
-                "Previous year from date": py_start,
-                "Previous year to date": py_end,
-            },
-            "remarks": "Auto-populated from Assessment Year / previous year dates.",
-        },
-        "7": {
-            "fields": {
-                "Assessment year": ay_to_full_string(ay),
-            },
-            "remarks": "Auto-populated from Client Management assessment year.",
-        },
-        "8": {
-            "fields": {
-                "Relevant clause of section 44AB": section_ref,
-                "Section reference as per applicability module": applicability_data.get("section_reference", ""),
-                "Reason for applicability": applicability_data.get("reason", ""),
-                "Whether auto-filled from Tax Audit Applicability module": "Yes",
-            },
-            "remarks": "Auto-populated from Tax Audit Applicability module.",
-        },
+    status_value = client_row_value(client_row, "Status of Assessee")
+    status_code = STATUS_CODE_MAP.get(str(status_value).strip().lower(), "")
+
+    section_ref = applicability_data.get("section_reference", "") or applicability_data.get("Section Reference", "")
+    reason = applicability_data.get("reason", "") or applicability_data.get("Reason", "")
+    clause_code = normalize_section_44ab_clause_code(section_ref) or normalize_section_44ab_clause_code(reason)
+
+    form3cd_indirect_tax = []
+    if gstin:
+        form3cd_indirect_tax.append({"IndirectTaxType": "GST", "RegNo": gstin})
+
+    clause_list = []
+    if clause_code:
+        clause_list.append({"ClauseNo": clause_code})
+
+    part_a_full = {
+        "AssesseeName": assessee_name,
+        "AddressDetail": address_detail,
+        "PAN": normalize_pan(client_row_value(client_row, "PAN")),
+        "AadhaarCardNo": normalize_aadhaar(client_row_value(client_row, "Aadhaar")),
+        "IndirectTaxFlag": indirect_flag,
+        "Form3cdIndirectTax": form3cd_indirect_tax,
+        "Status": status_code,
+        "PartAStartDate": normalize_date_string(py_start),
+        "PartAEndDate": normalize_date_string(py_end),
+        "AssessmentYear": ay_to_full_string(ay),
+        "Clause": clause_list,
     }
+
+    return {
+        "PartA": part_a_full,
+        "PartA.AssesseeName": assessee_name,
+        "PartA.AddressDetail": address_detail,
+        "PartA.PAN": {"PAN": normalize_pan(client_row_value(client_row, "PAN"))},
+        "PartA.AadhaarCardNo": {"AadhaarCardNo": normalize_aadhaar(client_row_value(client_row, "Aadhaar"))},
+        "PartA.IndirectTaxFlag": {"IndirectTaxFlag": indirect_flag},
+        "PartA.Form3cdIndirectTax": form3cd_indirect_tax,
+        "PartA.Status": {"Status": status_code},
+        "PartA.PartAStartDate": {"PartAStartDate": normalize_date_string(py_start)},
+        "PartA.PartAEndDate": {"PartAEndDate": normalize_date_string(py_end)},
+        "PartA.AssessmentYear": {"AssessmentYear": ay_to_full_string(ay)},
+        "PartA.Clause": clause_list,
+    }
+
+
+def get_phase1_block_data_for_schema_key(schema_key, block_type, schema_value_map):
+    schema_key = str(schema_key or "")
+
+    if not schema_key or schema_key.startswith("TAAS_"):
+        return [] if block_type == "table" else {}
+
+    if schema_key in schema_value_map:
+        return schema_value_map[schema_key]
+
+    if schema_key.startswith("PartA."):
+        child_key = schema_key.split(".")[-1]
+        part_a = schema_value_map.get("PartA", {})
+
+        if child_key in part_a:
+            value = part_a.get(child_key)
+            if block_type == "table":
+                return value if isinstance(value, list) else []
+            return value if isinstance(value, dict) else {child_key: value}
+
+    return [] if block_type == "table" else {}
+
+
+def blocks_have_values(blocks):
+    if not isinstance(blocks, dict):
+        return False
+
+    for block_data in blocks.values():
+        data = block_data.get("data", {}) if isinstance(block_data, dict) else {}
+
+        if isinstance(data, list):
+            for row in data:
+                if isinstance(row, dict) and any(str(v).strip() not in ["", "None", "nan", "NaT"] for v in row.values()):
+                    return True
+        elif isinstance(data, dict):
+            for value in data.values():
+                if isinstance(value, dict):
+                    if any(str(v).strip() not in ["", "None", "nan", "NaT"] for v in value.values()):
+                        return True
+                elif isinstance(value, list):
+                    if value:
+                        return True
+                elif str(value).strip() not in ["", "None", "nan", "NaT"]:
+                    return True
+        elif str(data).strip() not in ["", "None", "nan", "NaT"]:
+            return True
+
+    return False
+
+
+def derive_clause_status_from_blocks(blocks, existing_status="Not Filled"):
+    if existing_status == "Not Applicable":
+        return "Not Applicable"
+
+    return "Filled" if blocks_have_values(blocks) else "Not Filled"
 
 
 def apply_phase1_3cd_clause_auto_population(report_data, client_name, ay, applicability_data, overwrite=True):
@@ -1828,54 +1832,51 @@ def apply_phase1_3cd_clause_auto_population(report_data, client_name, ay, applic
 
     report_data.setdefault("form_3cd", {})
 
-    clause_data_map = build_phase1_clause_auto_data(
-        client_name=client_name,
-        ay=ay,
-        client_row=client_row,
-        applicability_data=applicability_data,
-    )
-
+    schema_value_map = build_phase1_schema_value_map(client_name, ay, client_row, applicability_data)
     changed = False
 
-    for clause_no, auto_data in clause_data_map.items():
+    for clause_no in ["1", "2", "3", "4", "5", "6", "7", "8"]:
         existing = report_data["form_3cd"].get(clause_no, {})
-        existing_fields = existing.get("fields", {})
+        visible_blocks = get_visible_clause_blocks(clause_no)
+        updated_blocks = {}
 
-        if not isinstance(existing_fields, dict):
-            existing_fields = {}
+        for block in visible_blocks:
+            block_name = block.get("name", "Clause Details")
+            schema_key = block.get("schema_key", "")
+            block_type = block.get("type", "object")
 
-        auto_fields = auto_data.get("fields", {})
+            auto_data = get_phase1_block_data_for_schema_key(schema_key, block_type, schema_value_map)
+            existing_block = existing.get("blocks", {}).get(block_name, {})
+            existing_data = existing_block.get("data", [] if block_type == "table" else {})
 
-        for key, value in auto_fields.items():
-            before = existing_fields.get(key, "")
+            if not overwrite and auto_data in [{}, [], None, ""]:
+                auto_data = existing_data
 
-            if overwrite:
-                if str(before) != str(value):
-                    existing_fields[key] = value
-                    changed = True
-            else:
-                if (key not in existing_fields or value_is_blank(existing_fields.get(key, ""))) and not value_is_blank(value):
-                    existing_fields[key] = value
-                    changed = True
+            updated_blocks[block_name] = {
+                "type": block_type,
+                "schema_key": schema_key,
+                "data": auto_data,
+            }
 
-        current_status = existing.get("status", "Not Filled")
-        new_status = "Filled"
+        if not visible_blocks:
+            updated_blocks = existing.get("blocks", {}) if isinstance(existing.get("blocks", {}), dict) else {}
 
-        # If all values are blank, do not mark as filled.
-        if not any(str(v).strip() for v in existing_fields.values()):
-            new_status = current_status
+        before = report_data["form_3cd"].get(clause_no, {})
+        new_status = "Filled" if blocks_have_values(updated_blocks) else existing.get("status", "Not Filled")
 
         report_data["form_3cd"][clause_no] = {
             "title": get_clause_title(clause_no),
             "utility_sheet": get_clause_sheet(clause_no),
             "status": new_status,
-            "remarks": auto_data.get("remarks", existing.get("remarks", "")),
-            "fields": existing_fields,
-            "blocks": existing.get("blocks", {}),
-            "schema_based": existing.get("schema_based", False),
-            "auto_populated_phase": "Phase 1 - Basic Details",
+            "remarks": "",
+            "fields": {},
+            "blocks": updated_blocks,
+            "schema_based": True,
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+
+        if before != report_data["form_3cd"][clause_no]:
+            changed = True
 
     return report_data, changed
 
@@ -2651,11 +2652,11 @@ def show_tax_report():
                 overwrite_report=True,
             )
             save_tax_report(selected_client, selected_ay, report_data)
-            st.success("✅ 3CA/3CB basic details and 3CD Clause 1 to 8 refreshed from Client Management.")
+            st.success("✅ Basic report details and Form 3CD Clause 1 to 8 refreshed from Client Management.")
             st.rerun()
 
     with refresh_col2:
-        st.caption("Auto-fill source: Client Management master data + Tax Audit Applicability. Manual entries are preserved unless you click refresh.")
+        st.caption("Auto-fill source: Client Management + Tax Audit Applicability. Manual 3CA/3CB fields are preserved unless you click refresh.")
 
     with st.expander(f"Open {form_code} Report Data Entry", expanded=False):
         updated_report_fields = render_structured_report_fields(
@@ -2693,19 +2694,18 @@ def show_tax_report():
 
     for clause_no, title in get_all_clauses():
         saved = form_3cd_data.get(str(clause_no), {})
-        blocks = get_clause_schema_blocks(clause_no)
+        blocks = get_visible_clause_blocks(clause_no)
 
         clause_rows.append({
             "Clause No": clause_no,
             "Title / Particulars": title,
             "Utility Sheet / Schema Area": get_clause_sheet(clause_no),
-            "Schema Blocks": len(blocks),
             "Filling Status": saved.get("status", "Not Filled")
         })
 
     clause_df = pd.DataFrame(clause_rows)
 
-    st.info("Click once on any clause row to open the Form 3CD schema-based data entry dialog.")
+    st.info("Click once on any clause row to open the Form 3CD data entry dialog.")
 
     selected_event = st.dataframe(
         clause_df,
@@ -2740,29 +2740,6 @@ def show_tax_report():
             selected_ay=selected_ay
         )
 
-        final_remark = st.text_area(
-            "Final Auditor Remark",
-            value=existing.get("remarks", ""),
-            height=100,
-            key=f"clause_{selected_client}_{selected_ay}_{clause_no}_final_remark"
-        )
-
-        status_options = [
-            "Not Filled",
-            "In Progress",
-            "Filled",
-            "Not Applicable"
-        ]
-
-        existing_status = existing.get("status", "Not Filled")
-
-        status = st.selectbox(
-            "Filling Status",
-            status_options,
-            index=status_options.index(existing_status) if existing_status in status_options else 0,
-            key=f"clause_{selected_client}_{selected_ay}_{clause_no}_status"
-        )
-
         save_col, close_col = st.columns(2)
 
         with save_col:
@@ -2770,9 +2747,9 @@ def show_tax_report():
                 latest_data["form_3cd"][clause_no] = {
                     "title": clause_title,
                     "utility_sheet": utility_sheet,
-                    "status": status,
-                    "remarks": final_remark,
-                    "fields": flattened_fields,
+                    "status": derive_clause_status_from_blocks(updated_blocks, existing.get("status", "Not Filled")),
+                    "remarks": "",
+                    "fields": {},
                     "blocks": updated_blocks,
                     "schema_based": True,
                     "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2869,6 +2846,6 @@ def show_tax_report():
                 st.error(f"Utility JSON export failed: {e}")
 
     st.caption(
-        "This version supports schema-aware Form 3CD data entry and Income-tax utility-style JSON export. "
+        "This version supports Form 3CD schema fields and Income-tax utility-style JSON export. "
         "Final portal/offline-utility acceptance should be tested with completed mandatory fields."
     )

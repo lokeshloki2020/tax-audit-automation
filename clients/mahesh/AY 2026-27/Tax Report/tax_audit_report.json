@@ -2,8 +2,8 @@
     "meta": {
         "audit_form": "Form 3CB-3CD",
         "form_code": "3CB",
-        "created_on": "2026-05-21 17:49:02",
-        "last_updated": "2026-05-21 18:52:49",
+        "created_on": "2026-05-21 18:57:59",
+        "last_updated": "2026-05-21 19:03:11",
         "schema_source": "schemas\\schema_3CB.json",
         "schema_root": "FORM3CB",
         "schema_inner_root": "F3CB"
@@ -11,83 +11,26 @@
     "applicability": {
         "tax_audit_applicable": "Yes",
         "audit_form": "Form 3CB-3CD",
-        "section_reference": "Section 44AB(d) read with Section 44ADA(4)",
-        "itr_basis": "Presumptive Basis - Section 44ADA",
-        "itr_form": "ITR-4, subject to other ITR-4 eligibility conditions",
-        "reason": "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable. | Declared professional income is lower than 50% of gross receipts and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(d). | Since tax audit is applicable, applicable audit report is Form 3CB-3CD."
+        "section_reference": "Section 44AB(a)",
+        "itr_basis": "Normal Basis",
+        "itr_form": "ITR-3 for normal business/professional income",
+        "reason": "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable. | Business turnover exceeds applicable audit limit of ₹1,00,00,000. | Since tax audit is applicable, applicable audit report is Form 3CB-3CD."
     },
     "report_form": {
-        "audit_form": "Form 3CB-3CD",
-        "form_code": "3CB",
-        "title": "Audit Report under section 44AB [Audited under Income-tax Act] Statement of particulars under section 44AB [Form No. 3CB]",
         "fields": {
+            "Assessee Last Name": "mahesh",
+            "Assessee Country Region": "91-India",
+            "Assessee PAN": "BHYEJ2828E",
+            "Period Beginning From": "2025-04-01",
+            "Period Ending On": "2026-03-31",
             "Declaration Type": "I",
             "Balance Sheet Date": "2026",
             "Statement Type": "Profit and loss account",
-            "Period Beginning From": "2025-04-01",
-            "Period Ending On": "2026-03-31",
-            "Assessee First Name": "a",
-            "Assessee Middle Name": "g",
-            "Assessee Last Name": "Abhishek",
-            "Type / Status of Assessee": "Individual",
-            "Assessee Country Region": "91-India",
-            "Assessee Flat Door Building": "vjhvjh",
-            "Assessee Road Street Block Sector": "ggvjh",
-            "Assessee Pincode": "500082",
-            "Assessee Post Office": "hviyvhkygv",
-            "Assessee Area Locality": "gvhyufvgjh",
-            "Assessee District": "gjygbnk",
-            "Assessee State": "36",
-            "Assessee PAN": "BHRPL6522E",
-            "Assessee Aadhaar": "",
-            "Books Head Office Address": "vjghcfkh",
             "Books Branches": "0",
-            "Observations Comments Discrepancies": "",
-            "Certification A": "Agreed",
-            "Certification B": "Agreed",
-            "Certification C Balance Sheet": "Agreed",
-            "Profit Or Loss": "Profit",
-            "Form 3CD Annexure Statement": "Confirmed",
-            "Form 3CD Observations Qualifications": "",
-            "Accountant First Name": "gbjvghcvb",
-            "Accountant Middle Name": "ghcnbjkjfhcg",
-            "Accountant Last Name": "jhgcnvhbgyjfthc",
-            "Accountant Membership Number": "999999",
-            "Accountant FRN": "99999s",
-            "Accountant Country Region": "91-India",
-            "Accountant Flat Door Building": "gbjkjyth",
-            "Accountant Road Street Block Sector": "jghvhjkyjfthcf",
-            "Accountant ZIP Code": "999999",
-            "Accountant Post Office": "thgvhytfc",
-            "Accountant Area Locality": "hgcvbjkuyf",
-            "Accountant District": "hcgvhbjkuy",
-            "Accountant State": "36",
-            "Date of signing Tax Audit Report": "2026-05-21",
-            "Place": "hghcbhjh",
-            "Report Date": "2026-05-21"
+            "Profit Or Loss": "Profit"
         }
     },
     "form_3cd": {
-        "8": {
-            "title": "Relevant clause of section 44AB under which audit has been conducted",
-            "utility_sheet": "PartA",
-            "status": "Filled",
-            "remarks": "",
-            "fields": {},
-            "blocks": {
-                "Section 44AB Clause": {
-                    "type": "table",
-                    "schema_key": "PartA.Clause",
-                    "data": [
-                        {
-                            "ClauseNo": "44ABd"
-                        }
-                    ]
-                }
-            },
-            "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
-        },
         "1": {
             "title": "Name of the assessee",
             "utility_sheet": "PartA",
@@ -101,12 +44,12 @@
                     "data": {
                         "FirstName": "",
                         "MiddleName": "",
-                        "LastName": "Abhishek"
+                        "LastName": "mahesh"
                     }
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "2": {
             "title": "Address of the assessee",
@@ -133,7 +76,7 @@
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "3": {
             "title": "Permanent Account Number or Aadhaar Number",
@@ -149,7 +92,7 @@
                         "AssesseeName": {
                             "FirstName": "",
                             "MiddleName": "",
-                            "LastName": "Abhishek"
+                            "LastName": "mahesh"
                         },
                         "AddressDetail": {
                             "AddrDetail1": "",
@@ -163,13 +106,13 @@
                             "CountryCode": "91",
                             "PinCode": ""
                         },
-                        "PAN": "BHRPL6522E",
+                        "PAN": "BHYEJ2828E",
                         "AadhaarCardNo": "",
                         "IndirectTaxFlag": "Y",
                         "Form3cdIndirectTax": [
                             {
                                 "IndirectTaxType": "GST",
-                                "RegNo": "36DCRPS5473P1ZC"
+                                "RegNo": "KDVSIYDVBSDNYI"
                             }
                         ],
                         "Status": "",
@@ -178,14 +121,14 @@
                         "AssessmentYear": "2026-27",
                         "Clause": [
                             {
-                                "ClauseNo": "44ABd"
+                                "ClauseNo": "44ABa"
                             }
                         ]
                     }
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "4": {
             "title": "Whether the assessee is liable to pay indirect tax like excise duty, service tax, sales tax, GST, customs duty, etc.",
@@ -201,7 +144,7 @@
                         "AssesseeName": {
                             "FirstName": "",
                             "MiddleName": "",
-                            "LastName": "Abhishek"
+                            "LastName": "mahesh"
                         },
                         "AddressDetail": {
                             "AddrDetail1": "",
@@ -215,13 +158,13 @@
                             "CountryCode": "91",
                             "PinCode": ""
                         },
-                        "PAN": "BHRPL6522E",
+                        "PAN": "BHYEJ2828E",
                         "AadhaarCardNo": "",
                         "IndirectTaxFlag": "Y",
                         "Form3cdIndirectTax": [
                             {
                                 "IndirectTaxType": "GST",
-                                "RegNo": "36DCRPS5473P1ZC"
+                                "RegNo": "KDVSIYDVBSDNYI"
                             }
                         ],
                         "Status": "",
@@ -230,7 +173,7 @@
                         "AssessmentYear": "2026-27",
                         "Clause": [
                             {
-                                "ClauseNo": "44ABd"
+                                "ClauseNo": "44ABa"
                             }
                         ]
                     }
@@ -242,7 +185,7 @@
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "5": {
             "title": "Status of the assessee",
@@ -258,7 +201,7 @@
                         "AssesseeName": {
                             "FirstName": "",
                             "MiddleName": "",
-                            "LastName": "Abhishek"
+                            "LastName": "mahesh"
                         },
                         "AddressDetail": {
                             "AddrDetail1": "",
@@ -272,13 +215,13 @@
                             "CountryCode": "91",
                             "PinCode": ""
                         },
-                        "PAN": "BHRPL6522E",
+                        "PAN": "BHYEJ2828E",
                         "AadhaarCardNo": "",
                         "IndirectTaxFlag": "Y",
                         "Form3cdIndirectTax": [
                             {
                                 "IndirectTaxType": "GST",
-                                "RegNo": "36DCRPS5473P1ZC"
+                                "RegNo": "KDVSIYDVBSDNYI"
                             }
                         ],
                         "Status": "",
@@ -287,14 +230,14 @@
                         "AssessmentYear": "2026-27",
                         "Clause": [
                             {
-                                "ClauseNo": "44ABd"
+                                "ClauseNo": "44ABa"
                             }
                         ]
                     }
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "6": {
             "title": "Previous year",
@@ -310,7 +253,7 @@
                         "AssesseeName": {
                             "FirstName": "",
                             "MiddleName": "",
-                            "LastName": "Abhishek"
+                            "LastName": "mahesh"
                         },
                         "AddressDetail": {
                             "AddrDetail1": "",
@@ -324,13 +267,13 @@
                             "CountryCode": "91",
                             "PinCode": ""
                         },
-                        "PAN": "BHRPL6522E",
+                        "PAN": "BHYEJ2828E",
                         "AadhaarCardNo": "",
                         "IndirectTaxFlag": "Y",
                         "Form3cdIndirectTax": [
                             {
                                 "IndirectTaxType": "GST",
-                                "RegNo": "36DCRPS5473P1ZC"
+                                "RegNo": "KDVSIYDVBSDNYI"
                             }
                         ],
                         "Status": "",
@@ -339,14 +282,14 @@
                         "AssessmentYear": "2026-27",
                         "Clause": [
                             {
-                                "ClauseNo": "44ABd"
+                                "ClauseNo": "44ABa"
                             }
                         ]
                     }
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
         },
         "7": {
             "title": "Assessment year",
@@ -362,7 +305,7 @@
                         "AssesseeName": {
                             "FirstName": "",
                             "MiddleName": "",
-                            "LastName": "Abhishek"
+                            "LastName": "mahesh"
                         },
                         "AddressDetail": {
                             "AddrDetail1": "",
@@ -376,13 +319,13 @@
                             "CountryCode": "91",
                             "PinCode": ""
                         },
-                        "PAN": "BHRPL6522E",
+                        "PAN": "BHYEJ2828E",
                         "AadhaarCardNo": "",
                         "IndirectTaxFlag": "Y",
                         "Form3cdIndirectTax": [
                             {
                                 "IndirectTaxType": "GST",
-                                "RegNo": "36DCRPS5473P1ZC"
+                                "RegNo": "KDVSIYDVBSDNYI"
                             }
                         ],
                         "Status": "",
@@ -391,14 +334,34 @@
                         "AssessmentYear": "2026-27",
                         "Clause": [
                             {
-                                "ClauseNo": "44ABd"
+                                "ClauseNo": "44ABa"
                             }
                         ]
                     }
                 }
             },
             "schema_based": true,
-            "last_updated": "2026-05-21 18:52:49"
+            "last_updated": "2026-05-21 19:03:11"
+        },
+        "8": {
+            "title": "Relevant clause of section 44AB under which audit has been conducted",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "",
+            "fields": {},
+            "blocks": {
+                "Section 44AB Clause": {
+                    "type": "table",
+                    "schema_key": "PartA.Clause",
+                    "data": [
+                        {
+                            "ClauseNo": "44ABa"
+                        }
+                    ]
+                }
+            },
+            "schema_based": true,
+            "last_updated": "2026-05-21 19:03:11"
         }
     }
 }
