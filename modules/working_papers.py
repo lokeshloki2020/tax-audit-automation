@@ -221,6 +221,15 @@ def apply_working_paper_style():
         font-size: 16px;
         opacity: 0.95;
     }
+    .active-client-strip {
+        padding: 14px 18px;
+        border-radius: 16px;
+        background: #ecfdf5;
+        border-left: 6px solid #10b981;
+        color: #064e3b;
+        margin-bottom: 18px;
+        font-weight: 700;
+    }
     .wp-card {
         padding: 18px;
         border-radius: 18px;
@@ -248,6 +257,20 @@ def apply_working_paper_style():
     }
     </style>
     """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# GLOBAL CLIENT HELPER
+# ---------------------------------------------------------
+
+def get_active_client_from_global_selection():
+    selected_client = st.session_state.get("global_selected_client")
+    selected_ay = st.session_state.get("global_selected_ay")
+
+    if selected_client and selected_ay:
+        return selected_client, selected_ay
+
+    return None, None
 
 
 # ---------------------------------------------------------
@@ -304,7 +327,6 @@ def clean_working_papers_df(wp_df):
         "Status"
     ] = "Pending"
 
-    # Add newly introduced working papers if missing
     existing = set(
         zip(
             wp_df["Category"].astype(str),
@@ -428,34 +450,17 @@ def show_working_papers():
     </div>
     """, unsafe_allow_html=True)
 
-    df = load_clients()
+    selected_client, selected_ay = get_active_client_from_global_selection()
 
-    if df.empty or "Client Name" not in df.columns:
-        st.info("Please add clients first.")
+    if not selected_client or not selected_ay:
+        st.info("Please add/select a client from the top-right Active Audit Client selector.")
         return
 
-    client_list = sorted(df["Client Name"].dropna().unique().tolist())
-
-    if len(client_list) == 0:
-        st.info("Please add clients first.")
-        return
-
-    selected_client = st.selectbox(
-        "Search / Select Client",
-        client_list,
-        index=0,
-        placeholder="Search client name...",
-        key="working_paper_client"
-    )
-
-    if not selected_client:
-        st.info("Please select a client.")
-        return
-
-    selected_row = df[df["Client Name"] == selected_client].iloc[0]
-    selected_ay = selected_row["AY"]
-
-    st.write(f"### Working Papers for {selected_client} - AY {selected_ay}")
+    st.markdown(f"""
+    <div class="active-client-strip">
+        Active Client: {selected_client} | AY: {selected_ay}
+    </div>
+    """, unsafe_allow_html=True)
 
     wp_path = f"clients/{selected_client}/AY {selected_ay}/working_papers_tracker.xlsx"
     wp_df = load_or_create_working_papers(wp_path)
@@ -488,10 +493,6 @@ def show_working_papers():
     st.progress(wp_completion / 100)
 
     st.divider()
-
-    # ---------------------------------------------------------
-    # CATEGORY SUMMARY
-    # ---------------------------------------------------------
 
     st.markdown("""
     <div class="wp-banner">
@@ -536,10 +537,6 @@ def show_working_papers():
     )
 
     st.divider()
-
-    # ---------------------------------------------------------
-    # CATEGORY DETAIL
-    # ---------------------------------------------------------
 
     st.markdown("""
     <div class="wp-banner">
@@ -590,16 +587,9 @@ def show_working_papers():
                 ],
                 required=True
             ),
-            "Prepared By": st.column_config.TextColumn(
-                "Prepared By"
-            ),
-            "Reviewed By": st.column_config.TextColumn(
-                "Reviewed By"
-            ),
-            "Remarks": st.column_config.TextColumn(
-                "Remarks",
-                width="large"
-            ),
+            "Prepared By": st.column_config.TextColumn("Prepared By"),
+            "Reviewed By": st.column_config.TextColumn("Reviewed By"),
+            "Remarks": st.column_config.TextColumn("Remarks", width="large"),
         },
         disabled=[
             "Category",
@@ -612,10 +602,6 @@ def show_working_papers():
 
     st.divider()
 
-    # ---------------------------------------------------------
-    # SAVE
-    # ---------------------------------------------------------
-
     save_col, refresh_col = st.columns(2)
 
     with save_col:
@@ -627,7 +613,6 @@ def show_working_papers():
                 edited_category_df
             )
 
-            # Replace selected category details
             updated_wp_df = updated_wp_df[
                 updated_wp_df["Category"] != selected_category
             ]
@@ -638,7 +623,6 @@ def show_working_papers():
             )
 
             updated_wp_df = clean_working_papers_df(updated_wp_df)
-
             updated_wp_df.to_excel(wp_path, index=False)
 
             _, _, _, _, _, new_completion = calculate_wp_completion(updated_wp_df)
@@ -651,10 +635,6 @@ def show_working_papers():
             st.rerun()
 
     st.divider()
-
-    # ---------------------------------------------------------
-    # DASHBOARD
-    # ---------------------------------------------------------
 
     st.subheader("📊 Working Paper Completion Dashboard")
 

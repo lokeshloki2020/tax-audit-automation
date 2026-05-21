@@ -1,19 +1,69 @@
 {
     "meta": {
-        "audit_form": "Form 3CB-3CD",
-        "form_code": "3CB",
+        "audit_form": "Form 3CA-3CD",
+        "form_code": "3CA",
         "created_on": "2026-05-20 13:34:54",
-        "last_updated": "2026-05-20 13:49:17"
+        "last_updated": "2026-05-21 15:49:15"
     },
     "applicability": {
         "tax_audit_applicable": "Yes",
-        "audit_form": "Form 3CB-3CD",
-        "section_reference": "Section 44AB(e) read with Section 44AD",
+        "audit_form": "Form 3CA-3CD",
+        "section_reference": "Section 44AB(a)",
         "itr_basis": "Normal Basis",
         "itr_form": "ITR-3 for normal business/professional income",
-        "reason": "Accounts are not required to be audited under another law. Therefore, Form 3CB-3CD will apply if tax audit is applicable. | Business turnover is within applicable audit limit of ₹10,00,00,000. | Client does not want to opt presumptive taxation. | Client opted out of presumptive taxation after earlier opting in and income exceeds basic exemption limit."
+        "reason": "Accounts are required to be audited under another law. If tax audit applies, Form 3CA-3CD will be applicable. | Business turnover exceeds applicable audit limit of ₹10,00,00,000. | Since tax audit is applicable, applicable audit report is Form 3CA-3CD."
     },
-    "report_form": {},
+    "report_form": {
+        "audit_form": "Form 3CA-3CD",
+        "form_code": "3CA",
+        "title": "Audit Report under section 44AB [Audited under any other law] Statement of particulars under section 44AB [Form No. 3CA]",
+        "fields": {
+            "Declaration Type": "I",
+            "Assessee First Name": "",
+            "Assessee Middle Name": "",
+            "Assessee Last Name": "",
+            "Assessee Country Region": "91-India",
+            "Assessee Flat Door Building": "",
+            "Assessee Road Street Block Sector": "",
+            "Assessee Pincode": "",
+            "Assessee Post Office": "",
+            "Assessee Area Locality": "",
+            "Assessee District": "",
+            "Assessee State": "",
+            "Assessee PAN": "",
+            "Assessee Aadhaar": "",
+            "Statutory Audit Conducted By": "me",
+            "Statutory Auditor Name": "",
+            "Other Law Name": "Companies Act, 2013",
+            "Other Law Declaration Type": "I",
+            "Audit Report Possessive": "my",
+            "Statutory Audit Report Date": "",
+            "Audited Statement Type": "Profit and loss account",
+            "Period Beginning From": "",
+            "Period Ending On": "",
+            "Audited Balance Sheet Date": "",
+            "Documents Annexed Statement": "Confirmed",
+            "Form 3CD Annexure Statement": "Confirmed",
+            "Form 3CD Opinion Statement": "Confirmed",
+            "Form 3CD Observations Qualifications": "",
+            "Accountant First Name": "",
+            "Accountant Middle Name": "",
+            "Accountant Last Name": "",
+            "Accountant Membership Number": "",
+            "Accountant FRN": "",
+            "Accountant Country Region": "91-India",
+            "Accountant Flat Door Building": "",
+            "Accountant Road Street Block Sector": "",
+            "Accountant ZIP Code": "",
+            "Accountant Post Office": "",
+            "Accountant Area Locality": "",
+            "Accountant District": "",
+            "Accountant State": "",
+            "Date of signing Tax Audit Report": "",
+            "Place": "",
+            "Report Date": ""
+        }
+    },
     "form_3cd": {
         "1": {
             "title": "Name of the Assessee",
@@ -24,8 +74,8 @@
             }
         },
         "8": {
-            "title": "Indicate the relevant clause of section 44AB under which audit has been conducted",
-            "utility_sheet": "Form-3CD",
+            "title": "Relevant clause of section 44AB under which audit has been conducted",
+            "utility_sheet": "Part_A",
             "status": "In Progress",
             "remarks": "Auto-filled from Tax Audit Applicability module.",
             "fields": {

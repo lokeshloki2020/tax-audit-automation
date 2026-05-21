@@ -12,11 +12,6 @@ from utils.common import load_clients
 # ---------------------------------------------------------
 
 def safe_float(value):
-    """
-    Converts formatted Indian/normal number string into float.
-    Example:
-    2,50,00,000 -> 25000000
-    """
     try:
         return float(str(value).replace(",", "").strip())
     except:
@@ -24,18 +19,13 @@ def safe_float(value):
 
 
 def format_indian_number(value):
-    """
-    Formats number into Indian comma format.
-    Example:
-    25000000 -> 2,50,00,000
-    """
     try:
         value = safe_float(value)
 
         if value == 0:
             return ""
 
-        value = int(value)
+        value = int(round(value, 0))
         s = str(value)
 
         if len(s) <= 3:
@@ -59,10 +49,12 @@ def format_indian_number(value):
         return ""
 
 
+def format_indian_number_or_zero(value):
+    formatted = format_indian_number(value)
+    return formatted if formatted else "0"
+
+
 def format_amount_session_state(key):
-    """
-    Formats amount fields into Indian comma format after entry.
-    """
     if key in st.session_state:
         raw_value = st.session_state[key]
 
@@ -72,9 +64,6 @@ def format_amount_session_state(key):
 
 
 def amount_input(label, key, placeholder="Example: 2,50,00,000"):
-    """
-    Reusable amount input with Indian comma formatting.
-    """
     return st.text_input(
         label,
         key=key,
@@ -85,10 +74,13 @@ def amount_input(label, key, placeholder="Example: 2,50,00,000"):
 
 
 def safe_key(value):
-    """
-    Creates safe session-state key names from client name and AY.
-    """
     return re.sub(r"[^A-Za-z0-9_]", "_", str(value))
+
+
+def get_index(options, value):
+    if value in options:
+        return options.index(value)
+    return 0
 
 
 def get_applicability_folder(client_name, ay):
@@ -109,21 +101,15 @@ def get_result_excel_path(client_name, ay):
     return f"{get_applicability_folder(client_name, ay)}/tax_audit_applicability_result.xlsx"
 
 
-def save_draft(client_name, ay, draft_data):
-    draft_path = get_draft_path(client_name, ay)
-
-    with open(draft_path, "w", encoding="utf-8") as file:
-        json.dump(draft_data, file, indent=4, ensure_ascii=False)
-
-    return draft_path
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-def load_draft(client_name, ay):
-    draft_path = get_draft_path(client_name, ay)
-
-    if os.path.exists(draft_path):
+def load_json(path):
+    if os.path.exists(path):
         try:
-            with open(draft_path, "r", encoding="utf-8") as file:
+            with open(path, "r", encoding="utf-8") as file:
                 return json.load(file)
         except:
             return {}
@@ -131,59 +117,157 @@ def load_draft(client_name, ay):
     return {}
 
 
+def save_draft(client_name, ay, draft_data):
+    draft_path = get_draft_path(client_name, ay)
+    save_json(draft_path, draft_data)
+    return draft_path
+
+
+def load_saved_applicability_data(client_name, ay):
+    draft_data = load_json(get_draft_path(client_name, ay))
+
+    if draft_data:
+        return draft_data
+
+    result_data = load_json(get_result_json_path(client_name, ay))
+
+    if result_data:
+        return result_data
+
+    return {}
+
+
 def save_applicability_outputs(client_name, ay, output_data):
-    """
-    Saves final applicability result in both Excel and JSON.
-    """
     excel_path = get_result_excel_path(client_name, ay)
     json_path = get_result_json_path(client_name, ay)
 
     output_df = pd.DataFrame([output_data])
     output_df.to_excel(excel_path, index=False)
 
-    with open(json_path, "w", encoding="utf-8") as file:
-        json.dump(output_data, file, indent=4, ensure_ascii=False)
+    save_json(json_path, output_data)
 
     return excel_path, json_path
 
 
-def get_index(options, value):
-    if value in options:
-        return options.index(value)
-    return 0
+def get_active_client_from_global_selection():
+    selected_client = st.session_state.get("global_selected_client")
+    selected_ay = st.session_state.get("global_selected_ay")
+
+    if selected_client and selected_ay:
+        return selected_client, selected_ay
+
+    return None, None
+
+# ---------------------------------------------------------
+# DISPLAY LABELS
+# ---------------------------------------------------------
+
+PRESUMPTIVE_SECTION_OPTIONS = [
+    "Not Applicable - Normal Business / Profession",
+    "44AD - Presumptive Taxation for Eligible Business",
+    "44ADA - Presumptive Taxation for Specified Profession",
+    "44AE - Presumptive Taxation for Goods Carriage Business"
+]
 
 
-def load_draft_into_session(draft_data, keys):
-    """
-    Force-loads saved draft data into Streamlit session state.
-    This is the important fix.
-    """
-    st.session_state[keys["entity_type"]] = draft_data.get("Entity Type", "Individual")
-    st.session_state[keys["activity_type"]] = draft_data.get("Activity Type", "Business")
-    st.session_state[keys["turnover"]] = draft_data.get("Turnover / Gross Receipts Formatted", "")
-    st.session_state[keys["cash_receipts"]] = draft_data.get("Cash Receipts Amount Formatted", "")
-    st.session_state[keys["cash_payments"]] = draft_data.get("Cash Payments Amount Formatted", "")
-    st.session_state[keys["profit_amount"]] = draft_data.get("Profit Amount Formatted", "")
-    st.session_state[keys["total_income"]] = draft_data.get("Total Income Above Basic Exemption", "Yes")
-    st.session_state[keys["presumptive_last_year"]] = draft_data.get("Opted Presumptive Last Year", "Not Applicable / First Year")
-    st.session_state[keys["wants_presumptive"]] = draft_data.get("Wants To Opt Presumptive", "Yes")
-    st.session_state[keys["other_law_audit"]] = draft_data.get("Accounts Audited Under Other Law", "No")
+SECTION_44AD_4_OPTIONS = [
+    "No - Section 44AD(4) not applicable",
+    "Yes - Section 44AD(4) applicable: opted out after earlier presumptive taxation"
+]
+
+
+def get_presumptive_code(display_value):
+    if str(display_value).startswith("44AD -"):
+        return "44AD"
+
+    if str(display_value).startswith("44ADA -"):
+        return "44ADA"
+
+    if str(display_value).startswith("44AE -"):
+        return "44AE"
+
+    return "Not Applicable"
+
+
+def get_presumptive_display(code_or_display):
+    value = str(code_or_display)
+
+    for option in PRESUMPTIVE_SECTION_OPTIONS:
+        if value == option:
+            return option
+
+    if value == "44AD":
+        return "44AD - Presumptive Taxation for Eligible Business"
+
+    if value == "44ADA":
+        return "44ADA - Presumptive Taxation for Specified Profession"
+
+    if value == "44AE":
+        return "44AE - Presumptive Taxation for Goods Carriage Business"
+
+    return "Not Applicable - Normal Business / Profession"
+
+
+def get_44ad_4_code(display_value):
+    if str(display_value).startswith("Yes"):
+        return "Yes"
+    return "No"
+
+
+def get_44ad_4_display(value):
+    if str(value) == "Yes":
+        return "Yes - Section 44AD(4) applicable: opted out after earlier presumptive taxation"
+
+    if str(value) == "No":
+        return "No - Section 44AD(4) not applicable"
+
+    if str(value).startswith("Yes"):
+        return "Yes - Section 44AD(4) applicable: opted out after earlier presumptive taxation"
+
+    return "No - Section 44AD(4) not applicable"
+
+
+def load_saved_data_into_session(saved_data, keys):
+    st.session_state[keys["entity_type"]] = saved_data.get("Entity Type", "Individual")
+    st.session_state[keys["activity_type"]] = saved_data.get("Activity Type", "Business")
+
+    saved_presumptive = saved_data.get("Presumptive Section", "Not Applicable")
+    st.session_state[keys["presumptive_section"]] = get_presumptive_display(saved_presumptive)
+
+    st.session_state[keys["business_nature"]] = saved_data.get("Business Nature", "Eligible Business")
+    st.session_state[keys["is_resident"]] = saved_data.get("Is Resident", "Yes")
+
+    saved_44ad_4 = saved_data.get("Section 44AD(4) Applicable", "No")
+    st.session_state[keys["section_44ad_4_applicable"]] = get_44ad_4_display(saved_44ad_4)
+
+    st.session_state[keys["turnover"]] = saved_data.get("Turnover / Gross Receipts Formatted", "")
+    st.session_state[keys["cash_receipts"]] = saved_data.get("Cash Receipts Amount Formatted", "")
+    st.session_state[keys["cash_payments"]] = saved_data.get("Cash Payments Amount Formatted", "")
+    st.session_state[keys["profit_amount"]] = saved_data.get("Declared Profit Amount Formatted", "")
+
+    st.session_state[keys["presumptive_profit_44ae"]] = saved_data.get("Presumptive Profit 44AE Formatted", "")
+
+    st.session_state[keys["total_income"]] = saved_data.get("Total Income Above Basic Exemption", "Yes")
+    st.session_state[keys["other_law_audit"]] = saved_data.get("Accounts Audited Under Other Law", "No")
 
 
 def initialise_blank_session(keys):
-    """
-    Initialises blank/default values when no draft is available.
-    """
     defaults = {
         keys["entity_type"]: "Individual",
         keys["activity_type"]: "Business",
+        keys["presumptive_section"]: "Not Applicable - Normal Business / Profession",
+
+        keys["business_nature"]: "Eligible Business",
+        keys["is_resident"]: "Yes",
+        keys["section_44ad_4_applicable"]: "No - Section 44AD(4) not applicable",
+
         keys["turnover"]: "",
         keys["cash_receipts"]: "",
         keys["cash_payments"]: "",
         keys["profit_amount"]: "",
+        keys["presumptive_profit_44ae"]: "",
+
         keys["total_income"]: "Yes",
-        keys["presumptive_last_year"]: "Not Applicable / First Year",
-        keys["wants_presumptive"]: "Yes",
         keys["other_law_audit"]: "No",
     }
 
@@ -193,112 +277,53 @@ def initialise_blank_session(keys):
 
 
 # ---------------------------------------------------------
-# MAIN MODULE
+# MAIN UI
 # ---------------------------------------------------------
 
 def show_tax_audit_applicability():
     st.subheader("🧭 Tax Audit Applicability & Filing Basis")
 
-    df = load_clients()
+    selected_client, selected_ay = get_active_client_from_global_selection()
 
-    if df.empty or "Client Name" not in df.columns:
-        st.info("Please add clients first.")
+    if not selected_client or not selected_ay:
+        st.info("Please add/select a client first.")
         return
 
-    client_list = sorted(df["Client Name"].dropna().unique().tolist())
-
-    if len(client_list) == 0:
-        st.info("Please add clients first.")
-        return
-
-    selected_client = st.selectbox(
-        "Search / Select Client",
-        client_list,
-        index=0,
-        placeholder="Search client name...",
-        key="taa_selected_client"
-    )
-
-    if not selected_client:
-        st.info("Please select a client.")
-        return
-
-    selected_row = df[df["Client Name"] == selected_client].iloc[0]
-    selected_ay = selected_row["AY"]
-
-    st.write(f"### Client: {selected_client} | AY: {selected_ay}")
-
-    draft_data = load_draft(selected_client, selected_ay)
-
-    # ---------------------------------------------------------
-    # UNIQUE SESSION KEYS CLIENT-WISE
-    # ---------------------------------------------------------
+    saved_data = load_saved_applicability_data(selected_client, selected_ay)
 
     context_key = f"{safe_key(selected_client)}_{safe_key(selected_ay)}"
 
     keys = {
         "entity_type": f"taa_entity_type_{context_key}",
         "activity_type": f"taa_activity_type_{context_key}",
+        "presumptive_section": f"taa_presumptive_section_{context_key}",
+
+        "business_nature": f"taa_business_nature_{context_key}",
+        "is_resident": f"taa_is_resident_{context_key}",
+        "section_44ad_4_applicable": f"taa_section_44ad_4_{context_key}",
+
         "turnover": f"taa_turnover_input_{context_key}",
         "cash_receipts": f"taa_cash_receipts_input_{context_key}",
         "cash_payments": f"taa_cash_payments_input_{context_key}",
         "profit_amount": f"taa_profit_amount_input_{context_key}",
+        "presumptive_profit_44ae": f"taa_presumptive_profit_44ae_{context_key}",
+
         "total_income": f"taa_total_income_{context_key}",
-        "presumptive_last_year": f"taa_presumptive_last_year_{context_key}",
-        "wants_presumptive": f"taa_wants_presumptive_{context_key}",
         "other_law_audit": f"taa_other_law_audit_{context_key}",
         "loaded_marker": f"taa_loaded_marker_{context_key}",
     }
 
     initialise_blank_session(keys)
 
-    # ---------------------------------------------------------
-    # FORCE AUTO-LOAD DRAFT
-    # ---------------------------------------------------------
-
-    should_force_load = False
-
-    if draft_data and not st.session_state.get(keys["loaded_marker"], False):
-        should_force_load = True
-
-    if draft_data:
-        current_amount_values_blank = (
-            not st.session_state.get(keys["turnover"])
-            and not st.session_state.get(keys["cash_receipts"])
-            and not st.session_state.get(keys["cash_payments"])
-            and not st.session_state.get(keys["profit_amount"])
-        )
-
-        draft_has_amount_values = (
-            draft_data.get("Turnover / Gross Receipts Formatted")
-            or draft_data.get("Cash Receipts Amount Formatted")
-            or draft_data.get("Cash Payments Amount Formatted")
-            or draft_data.get("Profit Amount Formatted")
-        )
-
-        if current_amount_values_blank and draft_has_amount_values:
-            should_force_load = True
-
-    if should_force_load:
-        load_draft_into_session(draft_data, keys)
+    # Auto-load saved data silently. No message shown.
+    if saved_data and not st.session_state.get(keys["loaded_marker"], False):
+        load_saved_data_into_session(saved_data, keys)
         st.session_state[keys["loaded_marker"]] = True
-
-    if draft_data:
-        st.success("✅ Saved draft loaded for this client.")
-
-    if st.button("🔄 Reload Saved Draft", key=f"reload_draft_{context_key}"):
-        if draft_data:
-            load_draft_into_session(draft_data, keys)
-            st.session_state[keys["loaded_marker"]] = True
-            st.success("✅ Saved draft reloaded successfully.")
-            st.rerun()
-        else:
-            st.warning("No saved draft available for this client.")
 
     st.divider()
 
     # ---------------------------------------------------------
-    # OPTIONS
+    # BASIC DETAILS
     # ---------------------------------------------------------
 
     entity_options = [
@@ -317,31 +342,91 @@ def show_tax_audit_applicability():
         "Both Business and Profession"
     ]
 
-    yes_no_options = ["Yes", "No"]
-
-    presumptive_last_year_options = [
-        "Yes",
-        "No",
-        "Not Applicable / First Year"
+    business_nature_options = [
+        "Eligible Business",
+        "Commission / Brokerage",
+        "Agency Business",
+        "Goods Carriage Business",
+        "Specified Profession",
+        "Other Ineligible Business"
     ]
 
-    # ---------------------------------------------------------
-    # BASIC DETAILS
-    # ---------------------------------------------------------
+    yes_no_options = ["Yes", "No"]
 
-    entity_type = st.selectbox(
-        "Type / Status of Assessee",
-        entity_options,
-        index=get_index(entity_options, st.session_state.get(keys["entity_type"], "Individual")),
-        key=keys["entity_type"]
-    )
+    c1, c2, c3 = st.columns(3)
 
-    activity_type = st.selectbox(
-        "Nature of Activity",
-        activity_options,
-        index=get_index(activity_options, st.session_state.get(keys["activity_type"], "Business")),
-        key=keys["activity_type"]
-    )
+    with c1:
+        entity_type = st.selectbox(
+            "Type / Status of Assessee",
+            entity_options,
+            index=get_index(entity_options, st.session_state.get(keys["entity_type"], "Individual")),
+            key=keys["entity_type"]
+        )
+
+    with c2:
+        activity_type = st.selectbox(
+            "Nature of Activity",
+            activity_options,
+            index=get_index(activity_options, st.session_state.get(keys["activity_type"], "Business")),
+            key=keys["activity_type"]
+        )
+
+    with c3:
+        presumptive_section_display = st.selectbox(
+            "Presumptive Taxation Section",
+            PRESUMPTIVE_SECTION_OPTIONS,
+            index=get_index(
+                PRESUMPTIVE_SECTION_OPTIONS,
+                st.session_state.get(
+                    keys["presumptive_section"],
+                    "Not Applicable - Normal Business / Profession"
+                )
+            ),
+            key=keys["presumptive_section"]
+        )
+
+    presumptive_section = get_presumptive_code(presumptive_section_display)
+
+    c4, c5, c6 = st.columns(3)
+
+    with c4:
+        is_resident = st.selectbox(
+            "Is the assessee Resident?",
+            yes_no_options,
+            index=get_index(yes_no_options, st.session_state.get(keys["is_resident"], "Yes")),
+            key=keys["is_resident"]
+        )
+
+    with c5:
+        business_nature = st.selectbox(
+            "Business / Income Nature",
+            business_nature_options,
+            index=get_index(business_nature_options, st.session_state.get(keys["business_nature"], "Eligible Business")),
+            key=keys["business_nature"]
+        )
+
+    with c6:
+        section_44ad_4_display = st.selectbox(
+            "Section 44AD(4) - Opting out of presumptive taxation after earlier opting in",
+            SECTION_44AD_4_OPTIONS,
+            index=get_index(
+                SECTION_44AD_4_OPTIONS,
+                st.session_state.get(
+                    keys["section_44ad_4_applicable"],
+                    "No - Section 44AD(4) not applicable"
+                )
+            ),
+            key=keys["section_44ad_4_applicable"],
+            help="Select Yes where the assessee opted out of Section 44AD after earlier opting in and the lock-in condition is triggered."
+        )
+
+    section_44ad_4_applicable = get_44ad_4_code(section_44ad_4_display)
+
+    st.divider()
+
+    # ---------------------------------------------------------
+    # AMOUNT DETAILS
+    # ---------------------------------------------------------
 
     turnover_input = amount_input(
         "Total Turnover / Gross Receipts",
@@ -351,17 +436,11 @@ def show_tax_audit_applicability():
 
     turnover = safe_float(turnover_input)
 
-    st.divider()
-
-    # ---------------------------------------------------------
-    # CASH RECEIPTS
-    # ---------------------------------------------------------
-
     col1, col2 = st.columns(2)
 
     with col1:
         cash_receipts_input = amount_input(
-            "Cash Receipts Amount",
+            "Cash Receipts / Cash Turnover Amount",
             key=keys["cash_receipts"],
             placeholder="Example: 5,00,000"
         )
@@ -369,12 +448,15 @@ def show_tax_audit_applicability():
     cash_receipts = safe_float(cash_receipts_input)
     cash_receipts_percent = round((cash_receipts / turnover) * 100, 2) if turnover > 0 else 0
 
+    digital_turnover = max(turnover - cash_receipts, 0)
+
     with col2:
         st.metric("Cash Receipts Percentage", f"{cash_receipts_percent}%")
 
-    # ---------------------------------------------------------
-    # CASH PAYMENTS
-    # ---------------------------------------------------------
+        if presumptive_section == "44AD":
+            st.caption(f"Digital / Banking Turnover auto-calculated: ₹{format_indian_number_or_zero(digital_turnover)}")
+        else:
+            st.caption("Digital turnover calculation is used only for Section 44AD.")
 
     col3, col4 = st.columns(2)
 
@@ -391,29 +473,35 @@ def show_tax_audit_applicability():
     with col4:
         st.metric("Cash Payments Percentage", f"{cash_payments_percent}%")
 
-    # ---------------------------------------------------------
-    # PROFIT AMOUNT
-    # ---------------------------------------------------------
-
     col5, col6 = st.columns(2)
 
     with col5:
         profit_amount_input = amount_input(
-            "Profit Amount",
+            "Declared Profit Amount",
             key=keys["profit_amount"],
             placeholder="Example: 20,00,000"
         )
 
-    profit_amount = safe_float(profit_amount_input)
-    profit_percent = round((profit_amount / turnover) * 100, 2) if turnover > 0 else 0
+    declared_profit = safe_float(profit_amount_input)
+    declared_profit_percent = round((declared_profit / turnover) * 100, 2) if turnover > 0 else 0
 
     with col6:
-        st.metric("Profit Percentage on Turnover / Receipts", f"{profit_percent}%")
+        st.metric("Declared Profit Percentage", f"{declared_profit_percent}%")
+
+    presumptive_profit_44ae = 0.0
+
+    if presumptive_section == "44AE":
+        presumptive_profit_44ae_input = amount_input(
+            "Presumptive Profit as per Section 44AE",
+            key=keys["presumptive_profit_44ae"],
+            placeholder="Example: 9,00,000"
+        )
+        presumptive_profit_44ae = safe_float(presumptive_profit_44ae_input)
 
     st.divider()
 
     # ---------------------------------------------------------
-    # OTHER DETAILS
+    # ADDITIONAL CONDITIONS
     # ---------------------------------------------------------
 
     total_income_above_basic_exemption = st.selectbox(
@@ -423,23 +511,6 @@ def show_tax_audit_applicability():
         key=keys["total_income"]
     )
 
-    opted_presumptive_last_year = st.selectbox(
-        "Was presumptive taxation opted in earlier year?",
-        presumptive_last_year_options,
-        index=get_index(
-            presumptive_last_year_options,
-            st.session_state.get(keys["presumptive_last_year"], "Not Applicable / First Year")
-        ),
-        key=keys["presumptive_last_year"]
-    )
-
-    wants_to_opt_presumptive = st.selectbox(
-        "Does client want to file under presumptive taxation this year?",
-        yes_no_options,
-        index=get_index(yes_no_options, st.session_state.get(keys["wants_presumptive"], "Yes")),
-        key=keys["wants_presumptive"]
-    )
-
     accounts_audited_under_other_law = st.selectbox(
         "Are accounts required to be audited under any other law? Example: Companies Act",
         yes_no_options,
@@ -447,29 +518,95 @@ def show_tax_audit_applicability():
         key=keys["other_law_audit"]
     )
 
+    st.divider()
+
     # ---------------------------------------------------------
-    # COMMON DRAFT DATA
+    # AUTO-CALCULATIONS DISPLAY
+    # ---------------------------------------------------------
+
+    presumptive_44ad_profit = round((cash_receipts * 0.08) + (digital_turnover * 0.06), 2)
+    presumptive_44ada_profit = round(turnover * 0.50, 2)
+
+    auto1, auto2, auto3 = st.columns(3)
+
+    with auto1:
+        if presumptive_section == "44AD":
+            st.metric(
+                "44AD Presumptive Profit",
+                f"₹{format_indian_number_or_zero(presumptive_44ad_profit)}"
+            )
+            st.caption("8% on cash turnover + 6% on digital/banking turnover")
+        else:
+            st.metric("44AD Presumptive Profit", "Not Applicable")
+            st.caption("Applicable only when Section 44AD is selected")
+
+    with auto2:
+        if presumptive_section == "44ADA":
+            st.metric(
+                "44ADA Presumptive Profit",
+                f"₹{format_indian_number_or_zero(presumptive_44ada_profit)}"
+            )
+            st.caption("50% of professional gross receipts")
+        else:
+            st.metric("44ADA Presumptive Profit", "Not Applicable")
+            st.caption("Applicable only when Section 44ADA is selected")
+
+    with auto3:
+        if presumptive_section == "44AD":
+            st.metric(
+                "Digital / Banking Turnover",
+                f"₹{format_indian_number_or_zero(digital_turnover)}"
+            )
+            st.caption("Total turnover minus cash receipts")
+        else:
+            st.metric("Digital / Banking Turnover", "Not Applicable")
+            st.caption("Used only for Section 44AD 6% / 8% calculation")
+
+    # ---------------------------------------------------------
+    # COMMON DATA FOR DRAFT / FINAL RESULT
     # ---------------------------------------------------------
 
     draft_output_data = {
         "Client Name": selected_client,
         "AY": selected_ay,
+
         "Entity Type": entity_type,
         "Activity Type": activity_type,
+        "Presumptive Section": presumptive_section,
+        "Presumptive Section Display": presumptive_section_display,
+        "Business Nature": business_nature,
+        "Is Resident": is_resident,
+        "Section 44AD(4) Applicable": section_44ad_4_applicable,
+        "Section 44AD(4) Display": section_44ad_4_display,
+
         "Turnover / Gross Receipts": turnover,
         "Turnover / Gross Receipts Formatted": format_indian_number(turnover),
+
         "Cash Receipts Amount": cash_receipts,
         "Cash Receipts Amount Formatted": format_indian_number(cash_receipts),
         "Cash Receipts %": cash_receipts_percent,
+
         "Cash Payments Amount": cash_payments,
         "Cash Payments Amount Formatted": format_indian_number(cash_payments),
         "Cash Payments %": cash_payments_percent,
-        "Profit Amount": profit_amount,
-        "Profit Amount Formatted": format_indian_number(profit_amount),
-        "Profit %": profit_percent,
+
+        "Digital / Banking Turnover": digital_turnover,
+        "Digital / Banking Turnover Formatted": format_indian_number(digital_turnover),
+
+        "Declared Profit Amount": declared_profit,
+        "Declared Profit Amount Formatted": format_indian_number(declared_profit),
+        "Declared Profit %": declared_profit_percent,
+
+        "44AD Presumptive Profit": presumptive_44ad_profit,
+        "44AD Presumptive Profit Formatted": format_indian_number(presumptive_44ad_profit),
+
+        "44ADA Presumptive Profit": presumptive_44ada_profit,
+        "44ADA Presumptive Profit Formatted": format_indian_number(presumptive_44ada_profit),
+
+        "Presumptive Profit 44AE": presumptive_profit_44ae,
+        "Presumptive Profit 44AE Formatted": format_indian_number(presumptive_profit_44ae),
+
         "Total Income Above Basic Exemption": total_income_above_basic_exemption,
-        "Opted Presumptive Last Year": opted_presumptive_last_year,
-        "Wants To Opt Presumptive": wants_to_opt_presumptive,
         "Accounts Audited Under Other Law": accounts_audited_under_other_law,
     }
 
@@ -478,40 +615,36 @@ def show_tax_audit_applicability():
     save_col, check_col = st.columns(2)
 
     with save_col:
-        if st.button("💾 Save Draft", key=f"taa_save_draft_button_{context_key}"):
-            draft_path = save_draft(
-                selected_client,
-                selected_ay,
-                draft_output_data
-            )
-
+        if st.button("💾 Save Draft", key=f"taa_save_draft_button_{context_key}", use_container_width=True):
+            draft_path = save_draft(selected_client, selected_ay, draft_output_data)
             st.session_state[keys["loaded_marker"]] = True
-
             st.success(f"✅ Draft saved successfully: {draft_path}")
 
     with check_col:
         check_clicked = st.button(
             "🔍 Check Tax Audit Applicability",
-            key=f"taa_check_button_{context_key}"
+            key=f"taa_check_button_{context_key}",
+            use_container_width=True
         )
 
-    # ---------------------------------------------------------
-    # FINAL APPLICABILITY RESULT
-    # ---------------------------------------------------------
-
     if check_clicked:
-
         result = determine_applicability(
-            entity_type,
-            activity_type,
-            turnover,
-            cash_receipts_percent,
-            cash_payments_percent,
-            profit_percent,
-            total_income_above_basic_exemption,
-            opted_presumptive_last_year,
-            wants_to_opt_presumptive,
-            accounts_audited_under_other_law
+            entity_type=entity_type,
+            activity_type=activity_type,
+            presumptive_section=presumptive_section,
+            business_nature=business_nature,
+            is_resident=is_resident,
+            turnover=turnover,
+            cash_receipts=cash_receipts,
+            cash_receipts_percent=cash_receipts_percent,
+            cash_payments_percent=cash_payments_percent,
+            declared_profit=declared_profit,
+            presumptive_44ad_profit=presumptive_44ad_profit,
+            presumptive_44ada_profit=presumptive_44ada_profit,
+            presumptive_profit_44ae=presumptive_profit_44ae,
+            total_income_above_basic_exemption=total_income_above_basic_exemption,
+            section_44ad_4_applicable=section_44ad_4_applicable,
+            accounts_audited_under_other_law=accounts_audited_under_other_law
         )
 
         st.subheader("📌 Applicability Result")
@@ -548,7 +681,6 @@ def show_tax_audit_applicability():
             "Reason": " | ".join(result["reasons"])
         }
 
-        # Save draft also when final result is generated
         save_draft(selected_client, selected_ay, draft_output_data)
 
         excel_path, json_path = save_applicability_outputs(
@@ -561,7 +693,7 @@ def show_tax_audit_applicability():
         st.success(f"✅ Applicability JSON data saved: {json_path}")
 
         st.info(
-            "This result will now be automatically used in the Tax Report module "
+            "This result will be automatically used in the Tax Report module "
             "to select Form 3CA-3CD or Form 3CB-3CD."
         )
 
@@ -573,13 +705,19 @@ def show_tax_audit_applicability():
 def determine_applicability(
     entity_type,
     activity_type,
+    presumptive_section,
+    business_nature,
+    is_resident,
     turnover,
+    cash_receipts,
     cash_receipts_percent,
     cash_payments_percent,
-    profit_percent,
+    declared_profit,
+    presumptive_44ad_profit,
+    presumptive_44ada_profit,
+    presumptive_profit_44ae,
     total_income_above_basic_exemption,
-    opted_presumptive_last_year,
-    wants_to_opt_presumptive,
+    section_44ad_4_applicable,
     accounts_audited_under_other_law
 ):
     reasons = []
@@ -588,31 +726,38 @@ def determine_applicability(
     audit_form = "Not Applicable"
     section_reference = "Not Applicable"
 
-    digital_condition = cash_receipts_percent <= 5 and cash_payments_percent <= 5
-
     is_company = entity_type == "Company"
     is_llp = entity_type == "LLP"
-    is_itr4_eligible_entity = entity_type in ["Individual", "HUF", "Partnership Firm"]
 
-    possible_audit_form = "Form 3CA-3CD" if accounts_audited_under_other_law == "Yes" else "Form 3CB-3CD"
+    is_itr4_eligible_entity_44ad = entity_type in ["Individual", "HUF", "Partnership Firm"]
+    is_44ada_eligible_entity = entity_type in ["Individual", "Partnership Firm"]
+
+    total_income_exceeds_bel = total_income_above_basic_exemption == "Yes"
+
+    possible_audit_form = (
+        "Form 3CA-3CD"
+        if accounts_audited_under_other_law == "Yes"
+        else "Form 3CB-3CD"
+    )
 
     if accounts_audited_under_other_law == "Yes":
         reasons.append(
-            "Accounts are required to be audited under another law. Therefore, Form 3CA-3CD will apply if tax audit is applicable."
+            "Accounts are required to be audited under another law. If tax audit applies, Form 3CA-3CD will be applicable."
         )
     else:
         reasons.append(
-            "Accounts are not required to be audited under another law. Therefore, Form 3CB-3CD will apply if tax audit is applicable."
+            "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable."
         )
 
     # ---------------------------------------------------------
-    # BUSINESS LOGIC
+    # NORMAL BUSINESS - SECTION 44AB(a)
     # ---------------------------------------------------------
 
-    if activity_type in ["Business", "Both Business and Profession"]:
+    if presumptive_section == "Not Applicable" and activity_type in ["Business", "Both Business and Profession"]:
+
+        digital_condition = cash_receipts_percent <= 5 and cash_payments_percent <= 5
 
         business_audit_limit = 10_00_00_000 if digital_condition else 1_00_00_000
-        presumptive_44ad_limit = 3_00_00_000 if cash_receipts_percent <= 5 else 2_00_00_000
 
         if turnover > business_audit_limit:
             tax_audit_applicable = "Yes"
@@ -622,91 +767,187 @@ def determine_applicability(
             )
         else:
             reasons.append(
-                f"Business turnover is within applicable audit limit of ₹{format_indian_number(business_audit_limit)}."
+                f"Business turnover is within applicable audit limit of ₹{format_indian_number(business_audit_limit)} under Section 44AB(a)."
             )
 
-        if wants_to_opt_presumptive == "Yes":
-            if (
-                is_itr4_eligible_entity
-                and not is_llp
-                and not is_company
-                and turnover <= presumptive_44ad_limit
-            ):
-                itr_basis = "Presumptive Basis - Section 44AD"
-                reasons.append(
-                    f"Client is eligible for presumptive taxation u/s 44AD within turnover limit of ₹{format_indian_number(presumptive_44ad_limit)}."
-                )
-            else:
-                itr_basis = "Normal Basis"
-                reasons.append(
-                    "Presumptive taxation u/s 44AD is not suitable due to entity type or turnover limit."
-                )
-        else:
-            itr_basis = "Normal Basis"
-            reasons.append("Client does not want to opt presumptive taxation.")
-
-        if (
-            opted_presumptive_last_year == "Yes"
-            and wants_to_opt_presumptive == "No"
-            and total_income_above_basic_exemption == "Yes"
-            and is_itr4_eligible_entity
-        ):
-            tax_audit_applicable = "Yes"
-            section_reference = "Section 44AB(e) read with Section 44AD"
-            reasons.append(
-                "Client opted out of presumptive taxation after earlier opting in and income exceeds basic exemption limit."
-            )
+        itr_basis = "Normal Basis"
 
     # ---------------------------------------------------------
-    # PROFESSION LOGIC
+    # NORMAL PROFESSION - SECTION 44AB(b)
     # ---------------------------------------------------------
 
-    if activity_type in ["Profession", "Both Business and Profession"]:
+    if presumptive_section == "Not Applicable" and activity_type in ["Profession", "Both Business and Profession"]:
 
-        profession_audit_limit = 75_00_000 if cash_receipts_percent <= 5 else 50_00_000
-        presumptive_44ada_limit = 75_00_000 if cash_receipts_percent <= 5 else 50_00_000
+        profession_audit_limit = 50_00_000
 
         if turnover > profession_audit_limit:
             tax_audit_applicable = "Yes"
             section_reference = "Section 44AB(b)"
             reasons.append(
-                f"Professional gross receipts exceed applicable audit limit of ₹{format_indian_number(profession_audit_limit)}."
+                "Professional gross receipts exceed ₹50,00,000. Tax audit is applicable under Section 44AB(b)."
             )
         else:
             reasons.append(
-                f"Professional gross receipts are within applicable audit limit of ₹{format_indian_number(profession_audit_limit)}."
+                "Professional gross receipts do not exceed ₹50,00,000. Normal profession audit is not triggered under Section 44AB(b)."
             )
 
-        if wants_to_opt_presumptive == "Yes":
-            if entity_type == "Individual" and turnover <= presumptive_44ada_limit:
-                itr_basis = "Presumptive Basis - Section 44ADA"
+        itr_basis = "Normal Basis"
+
+    # ---------------------------------------------------------
+    # PRESUMPTIVE BUSINESS - SECTION 44AD
+    # ---------------------------------------------------------
+
+    if presumptive_section == "44AD":
+
+        itr_basis = "Presumptive Basis - Section 44AD"
+
+        if activity_type not in ["Business", "Both Business and Profession"]:
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44AD is not applicable because the selected activity is not business.")
+
+        elif is_resident != "Yes":
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44AD is available only to resident eligible assessees.")
+
+        elif not is_itr4_eligible_entity_44ad or is_llp or is_company:
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44AD is not available to Company, LLP, or ineligible entity types.")
+
+        elif business_nature in [
+            "Commission / Brokerage",
+            "Agency Business",
+            "Goods Carriage Business",
+            "Specified Profession",
+            "Other Ineligible Business"
+        ]:
+            itr_basis = "Normal Basis"
+            reasons.append(
+                f"Section 44AD is not applicable because business nature is '{business_nature}'."
+            )
+
+        else:
+            reasons.append(
+                f"Presumptive profit under Section 44AD is ₹{format_indian_number_or_zero(presumptive_44ad_profit)} "
+                "computed as 8% of cash turnover and 6% of digital/banking turnover."
+            )
+
+            if declared_profit >= presumptive_44ad_profit:
+                tax_audit_applicable = "No"
+                section_reference = "Section 44AD"
                 reasons.append(
-                    f"Client may consider presumptive taxation u/s 44ADA within receipts limit of ₹{format_indian_number(presumptive_44ada_limit)}."
+                    "Declared profit is not lower than presumptive profit under Section 44AD. Tax audit is not triggered."
                 )
             else:
-                reasons.append(
-                    "Section 44ADA presumptive basis may not apply due to entity type or receipt limit."
-                )
+                if section_44ad_4_applicable == "Yes" and total_income_exceeds_bel:
+                    tax_audit_applicable = "Yes"
+                    section_reference = "Section 44AB(e) read with Section 44AD(4)"
+                    reasons.append(
+                        "Declared profit is lower than presumptive profit, Section 44AD(4) applies, and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(e)."
+                    )
+                else:
+                    tax_audit_applicable = "No"
+                    section_reference = "Section 44AD"
+                    reasons.append(
+                        "Declared profit is lower than presumptive profit, but Section 44AB(e) condition is not triggered because either Section 44AD(4) is not applicable or income does not exceed basic exemption limit."
+                    )
 
-        if (
-            wants_to_opt_presumptive == "No"
-            and profit_percent < 50
-            and total_income_above_basic_exemption == "Yes"
-            and entity_type == "Individual"
-            and turnover <= presumptive_44ada_limit
-        ):
+    # ---------------------------------------------------------
+    # PRESUMPTIVE PROFESSION - SECTION 44ADA
+    # ---------------------------------------------------------
+
+    if presumptive_section == "44ADA":
+
+        itr_basis = "Presumptive Basis - Section 44ADA"
+
+        ada_limit = 75_00_000 if cash_receipts_percent <= 5 else 50_00_000
+
+        if activity_type not in ["Profession", "Both Business and Profession"]:
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44ADA is not applicable because the selected activity is not profession.")
+
+        elif is_resident != "Yes":
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44ADA is available only to resident eligible assessees.")
+
+        elif not is_44ada_eligible_entity or is_llp or is_company:
+            itr_basis = "Normal Basis"
+            reasons.append("Section 44ADA is not available to Company, LLP, HUF or other ineligible entity types.")
+
+        elif turnover > ada_limit:
             tax_audit_applicable = "Yes"
-            section_reference = "Section 44AB(d) read with Section 44ADA"
+            itr_basis = "Normal Basis"
+            section_reference = "Section 44AB(b)"
             reasons.append(
-                "Professional income is below 50% of receipts and total income exceeds basic exemption limit."
+                f"Professional gross receipts exceed the applicable Section 44ADA eligibility limit of ₹{format_indian_number(ada_limit)}. Normal profession audit rule under Section 44AB(b) applies."
             )
 
-    itr_form = recommend_itr_form(entity_type, itr_basis)
+        elif declared_profit >= presumptive_44ada_profit:
+            tax_audit_applicable = "No"
+            section_reference = "Section 44ADA"
+            reasons.append(
+                f"Declared professional income is at least 50% of gross receipts. Minimum presumptive income is ₹{format_indian_number_or_zero(presumptive_44ada_profit)}."
+            )
+
+        else:
+            if total_income_exceeds_bel:
+                tax_audit_applicable = "Yes"
+                section_reference = "Section 44AB(d) read with Section 44ADA(4)"
+                reasons.append(
+                    "Declared professional income is lower than 50% of gross receipts and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(d)."
+                )
+            else:
+                tax_audit_applicable = "No"
+                section_reference = "Section 44ADA"
+                reasons.append(
+                    "Declared professional income is lower than 50%, but total income does not exceed basic exemption limit. Tax audit is not triggered."
+                )
+
+    # ---------------------------------------------------------
+    # GOODS CARRIAGE PRESUMPTIVE TAXATION - SECTION 44AE
+    # ---------------------------------------------------------
+
+    if presumptive_section == "44AE":
+
+        itr_basis = "Presumptive Basis - Section 44AE"
+
+        if business_nature != "Goods Carriage Business":
+            reasons.append(
+                "Section 44AE is generally linked to goods carriage business. Please verify business nature."
+            )
+
+        if presumptive_profit_44ae <= 0:
+            tax_audit_applicable = "No"
+            section_reference = "Section 44AE"
+            reasons.append(
+                "Presumptive profit under Section 44AE was not entered. Enter the deemed income as per vehicle details for exact audit decision."
+            )
+
+        elif declared_profit < presumptive_profit_44ae:
+            tax_audit_applicable = "Yes"
+            section_reference = "Section 44AB(c) read with Section 44AE"
+            reasons.append(
+                "Declared profit is lower than deemed income under Section 44AE. Tax audit is applicable under Section 44AB(c)."
+            )
+
+        else:
+            tax_audit_applicable = "No"
+            section_reference = "Section 44AE"
+            reasons.append(
+                "Declared income is not lower than deemed income under Section 44AE. Tax audit is not triggered."
+            )
+
+    # ---------------------------------------------------------
+    # AUDIT FORM DECISION
+    # ---------------------------------------------------------
 
     if tax_audit_applicable == "Yes":
         audit_form = possible_audit_form
+        reasons.append(f"Since tax audit is applicable, applicable audit report is {audit_form}.")
     else:
         audit_form = "Not Applicable"
+        reasons.append("Since tax audit is not applicable, Form 3CA/3CB-3CD is not required.")
+
+    itr_form = recommend_itr_form(entity_type, itr_basis)
 
     return {
         "tax_audit_applicable": tax_audit_applicable,
@@ -726,8 +967,7 @@ def recommend_itr_form(entity_type, itr_basis):
 
     if "Presumptive" in itr_basis:
         if entity_type in ["Individual", "HUF", "Partnership Firm"]:
-            return "ITR-4, subject to other eligibility conditions"
-
+            return "ITR-4, subject to other ITR-4 eligibility conditions"
         return "Presumptive basis not recommended for this entity type"
 
     if entity_type in ["Individual", "HUF"]:

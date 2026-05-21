@@ -10,6 +10,10 @@ def show_client_management():
 
     df = load_clients()
 
+    # ---------------------------------------------------------
+    # ADD NEW CLIENT - SIDEBAR
+    # ---------------------------------------------------------
+
     st.sidebar.header("➕ Add New Client")
 
     client_name = st.sidebar.text_input("Client Name")
@@ -119,19 +123,36 @@ def show_client_management():
             st.sidebar.success("✅ Client Added, Folders, Checklist & WP Tracker Created!")
             st.rerun()
 
+    # ---------------------------------------------------------
+    # CLIENT SELECTION
+    # ---------------------------------------------------------
+
+    if df.empty or "Client Name" not in df.columns:
+        st.info("No clients added yet. Add a new client from the sidebar.")
+        return
+
     client_list = sorted(df["Client Name"].dropna().unique().tolist())
+    client_options = ["Select Client"] + client_list
 
     selected_client = st.selectbox(
         "Search / Select Client",
-        client_list,
-        index=0 if len(client_list) > 0 else None,
-        placeholder="Search client name..."
+        client_options,
+        index=0,
+        placeholder="Select client...",
+        key="client_management_selected_client"
     )
 
-    if selected_client:
-        filtered_df = df[df["Client Name"] == selected_client].copy()
-    else:
+    if selected_client == "Select Client":
         filtered_df = df.copy()
+        st.info("Showing all clients. Select a client to filter a single client.")
+        download_file_name = "all_clients_data.csv"
+    else:
+        filtered_df = df[df["Client Name"] == selected_client].copy()
+        download_file_name = f"{selected_client}_client_data.csv"
+
+    # ---------------------------------------------------------
+    # CLIENT DATABASE
+    # ---------------------------------------------------------
 
     title_col, download_col = st.columns([9, 1])
 
@@ -142,9 +163,9 @@ def show_client_management():
         st.download_button(
             label="⬇",
             data=filtered_df.to_csv(index=False),
-            file_name="selected_client_data.csv",
+            file_name=download_file_name,
             mime="text/csv",
-            help="Download selected client data"
+            help="Download client data"
         )
 
     editable_df = filtered_df.reset_index()
@@ -178,6 +199,10 @@ def show_client_management():
             "Checklist Completion %"
         ]
     )
+
+    # ---------------------------------------------------------
+    # SAVE CHANGES
+    # ---------------------------------------------------------
 
     if st.button("💾 Save Changes", help="Save client status changes"):
         for _, row in edited_clients.iterrows():

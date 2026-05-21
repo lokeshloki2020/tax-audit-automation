@@ -1,27 +1,78 @@
 {
     "meta": {
-        "audit_form": "Not Applicable",
-        "form_code": "",
+        "audit_form": "Form 3CB-3CD",
+        "form_code": "3CB",
         "created_on": "2026-05-20 13:34:42",
-        "last_updated": "2026-05-20 15:17:11"
+        "last_updated": "2026-05-21 15:25:03"
     },
     "applicability": {
-        "tax_audit_applicable": "",
-        "audit_form": "Not Applicable",
-        "section_reference": "",
-        "itr_basis": "",
-        "itr_form": "",
-        "reason": ""
+        "tax_audit_applicable": "Yes",
+        "audit_form": "Form 3CB-3CD",
+        "section_reference": "Section 44AB(d) read with Section 44ADA(4)",
+        "itr_basis": "Presumptive Basis - Section 44ADA",
+        "itr_form": "ITR-4, subject to other ITR-4 eligibility conditions",
+        "reason": "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable. | Declared professional income is lower than 50% of gross receipts and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(d). | Since tax audit is applicable, applicable audit report is Form 3CB-3CD."
     },
-    "report_form": {},
+    "report_form": {
+        "audit_form": "Form 3CB-3CD",
+        "form_code": "3CB",
+        "title": "Audit Report under section 44AB [Audited under Income-tax Act] Statement of particulars under section 44AB [Form No. 3CB]",
+        "fields": {
+            "Declaration Type": "We",
+            "Balance Sheet Date": "2026",
+            "Statement Type": "Profit and loss account",
+            "Period Beginning From": "2025-04-01",
+            "Period Ending On": "2026-03-31",
+            "Assessee First Name": "",
+            "Assessee Middle Name": "",
+            "Assessee Last Name": "",
+            "Assessee Country Region": "91-India",
+            "Assessee Flat Door Building": "",
+            "Assessee Road Street Block Sector": "",
+            "Assessee Pincode": "",
+            "Assessee Post Office": "",
+            "Assessee Area Locality": "",
+            "Assessee District": "",
+            "Assessee State": "",
+            "Assessee PAN": "",
+            "Assessee Aadhaar": "",
+            "Books Head Office Address": "",
+            "Books Branches": "",
+            "Observations Comments Discrepancies": "",
+            "Certification A": "Agreed",
+            "Certification B": "Agreed",
+            "Certification C Balance Sheet": "Agreed",
+            "Profit Or Loss": "Profit",
+            "Form 3CD Annexure Statement": "Confirmed",
+            "Form 3CD Observations Qualifications": "",
+            "Accountant First Name": "",
+            "Accountant Middle Name": "",
+            "Accountant Last Name": "",
+            "Accountant Membership Number": "",
+            "Accountant FRN": "",
+            "Accountant Country Region": "91-India",
+            "Accountant Flat Door Building": "",
+            "Accountant Road Street Block Sector": "",
+            "Accountant ZIP Code": "",
+            "Accountant Post Office": "",
+            "Accountant Area Locality": "",
+            "Accountant District": "",
+            "Accountant State": "",
+            "Date of signing Tax Audit Report": "",
+            "Place": "",
+            "Report Date": ""
+        }
+    },
     "form_3cd": {
         "8": {
-            "title": "Indicate the relevant clause of section 44AB under which audit has been conducted",
-            "utility_sheet": "Form-3CD",
+            "title": "Relevant clause of section 44AB under which audit has been conducted",
+            "utility_sheet": "Part_A",
             "status": "In Progress",
             "remarks": "Auto-filled from Tax Audit Applicability module.",
             "fields": {
-                "Whether auto-filled from Tax Audit Applicability module": "Yes"
+                "Whether auto-filled from Tax Audit Applicability module": "Yes",
+                "Relevant clause of section 44AB": "Section 44AB(d) read with Section 44ADA(4)",
+                "Reason for applicability": "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable. | Declared professional income is lower than 50% of gross receipts and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(d). | Since tax audit is applicable, applicable audit report is Form 3CB-3CD."
             }
         }
     }

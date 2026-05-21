@@ -5,6 +5,10 @@ import streamlit as st
 from utils.common import load_clients, save_clients, get_document_status
 
 
+# ---------------------------------------------------------
+# MASTER DOCUMENT CATEGORIES
+# ---------------------------------------------------------
+
 DOCUMENT_CATEGORIES = {
     "Basic Books Data": [
         "Trial_Balance",
@@ -27,10 +31,6 @@ DOCUMENT_CATEGORIES = {
         "Purchase_Register",
         "Customer_Master",
         "Vendor_Master",
-        "Debtor_Ageing",
-        "Creditor_Ageing",
-        "Outstanding_Receivables",
-        "Outstanding_Payables",
     ],
 
     "GST Data": [
@@ -48,6 +48,7 @@ DOCUMENT_CATEGORIES = {
     ],
 
     "TDS / TCS Data": [
+        "Expense_Ledgers",
         "TDS_Deducted",
         "TDS_Payments",
         "TDS_Returns",
@@ -59,17 +60,26 @@ DOCUMENT_CATEGORIES = {
         "Form_27EQ",
         "Form_26AS",
         "AIS_TIS",
-        "TCS_Details",
-        "TCS_Returns",
+        "Vendor_Master",
+        "Customer_Master",
+        "Payment_Register",
+        "Receipt_Register",
+        "Salary_Register",
     ],
 
     "Statutory Dues and 43B Data": [
         "Statutory_Dues",
+        "GST_Return_Status",
+        "GST_Ledger",
+        "GST_Payments",
+        "GSTR3B",
+        "TDS_Ledger",
+        "TDS_Deducted",
+        "TDS_Payments",
+        "TDS_Returns",
         "PF_ESI_Details",
         "PF_Returns",
         "ESI_Returns",
-        "PF_Challans",
-        "ESI_Challans",
         "Professional_Tax_Returns",
         "Bonus_Details",
         "Leave_Encashment_Details",
@@ -77,6 +87,7 @@ DOCUMENT_CATEGORIES = {
         "Loan_Interest_Details",
         "Payment_Register",
         "Bank_Book",
+        "Ledger_Details",
     ],
 
     "Payroll / PF / ESI Data": [
@@ -96,7 +107,6 @@ DOCUMENT_CATEGORIES = {
         "Interest_To_Banks_FI",
         "Loan_Interest_Details",
         "Party_Master",
-        "Capital_Account",
         "Bank_Book",
         "Cash_Book",
         "Receipt_Register",
@@ -144,6 +154,17 @@ DOCUMENT_CATEGORIES = {
         "Trial_Balance",
     ],
 
+    "Balance Sheet Supporting Data": [
+        "Debtor_Ageing",
+        "Creditor_Ageing",
+        "Outstanding_Receivables",
+        "Outstanding_Payables",
+        "Capital_Account",
+        "Loan_Details",
+        "Fixed_Asset_Register",
+        "Statutory_Dues",
+    ],
+
     "Other Tax and Reporting Data": [
         "Tax_Demand_Refund_Details",
         "GST_Orders",
@@ -166,6 +187,10 @@ DOCUMENT_CATEGORIES = {
 }
 
 
+# ---------------------------------------------------------
+# STYLE
+# ---------------------------------------------------------
+
 def apply_document_collection_style():
     st.markdown("""
     <style>
@@ -186,6 +211,15 @@ def apply_document_collection_style():
         margin-top: 8px;
         font-size: 16px;
         opacity: 0.95;
+    }
+    .active-client-strip {
+        padding: 14px 18px;
+        border-radius: 16px;
+        background: #ecfdf5;
+        border-left: 6px solid #10b981;
+        color: #064e3b;
+        margin-bottom: 18px;
+        font-weight: 700;
     }
     .category-card {
         padding: 18px;
@@ -216,6 +250,23 @@ def apply_document_collection_style():
     """, unsafe_allow_html=True)
 
 
+# ---------------------------------------------------------
+# GLOBAL CLIENT HELPER
+# ---------------------------------------------------------
+def get_active_client_from_global_selection():
+    selected_client = st.session_state.get("global_selected_client")
+    selected_ay = st.session_state.get("global_selected_ay")
+
+    if selected_client and selected_ay:
+        return selected_client, selected_ay
+
+    return None, None
+
+
+# ---------------------------------------------------------
+# CHECKLIST HELPERS
+# ---------------------------------------------------------
+
 def get_default_checklist_df():
     rows = []
 
@@ -241,6 +292,7 @@ def clean_checklist_df(checklist_df):
         if col not in checklist_df.columns:
             checklist_df[col] = ""
 
+    checklist_df["Category"] = checklist_df["Category"].astype(str)
     checklist_df["Document Name"] = checklist_df["Document Name"].astype(str)
     checklist_df["Status"] = checklist_df["Status"].astype(str)
     checklist_df["Remarks"] = checklist_df["Remarks"].astype(str).replace("nan", "")
@@ -439,50 +491,43 @@ def get_pending_documents_by_category(checklist_df):
     return grouped, pending_df
 
 
+# ---------------------------------------------------------
+# MAIN MODULE
+# ---------------------------------------------------------
+
 def show_document_collection():
     apply_document_collection_style()
 
     st.markdown("""
     <div class="doc-hero">
         <h2>📄 Document Collection Control Center</h2>
-        <p>Category-wise document tracking for Tax Audit automation, follow-up, and audit procedure mapping.</p>
+        <p>Category-wise document tracking for tax audit automation, follow-up, and audit procedure mapping.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    selected_client, selected_ay = get_active_client_from_global_selection()
+
+    if not selected_client or not selected_ay:
+        st.info("Please add/select a client from the top-right Active Audit Client selector.")
+        return
+
+    st.markdown(f"""
+    <div class="active-client-strip">
+        Active Client: {selected_client} | AY: {selected_ay}
     </div>
     """, unsafe_allow_html=True)
 
     df = load_clients()
-
-    if df.empty or "Client Name" not in df.columns:
-        st.info("Please add clients first.")
-        return
-
-    client_list = sorted(df["Client Name"].dropna().unique().tolist())
-
-    if len(client_list) == 0:
-        st.info("Please add clients first.")
-        return
-
-    selected_client = st.selectbox(
-        "Search / Select Client",
-        client_list,
-        index=0,
-        placeholder="Search client name...",
-        key="document_collection_client"
-    )
-
-    if not selected_client:
-        st.info("Please select a client.")
-        return
-
-    selected_row = df[df["Client Name"] == selected_client].iloc[0]
-    selected_ay = selected_row["AY"]
-
-    st.write(f"### Client: {selected_client} | AY: {selected_ay}")
 
     checklist_path = f"clients/{selected_client}/AY {selected_ay}/document_checklist.xlsx"
 
     checklist_df = load_or_create_checklist(checklist_path)
 
     completion_percentage, document_status = calculate_overall_status(checklist_df)
+
+    # ---------------------------------------------------------
+    # TOP METRICS
+    # ---------------------------------------------------------
 
     total_documents = len(checklist_df)
     received_documents = len(checklist_df[checklist_df["Status"].isin(["Received", "Not Applicable"])])
@@ -510,9 +555,14 @@ def show_document_collection():
 
     st.divider()
 
+    # ---------------------------------------------------------
+    # CATEGORY SUMMARY
+    # ---------------------------------------------------------
+
     st.markdown("""
     <div class="section-banner">
-        <b>Step 1:</b> Review category-wise document status. Tick <b>Data Received</b> to mark the full category as received.
+        <b>Step 1:</b> Review category-wise document status. 
+        Tick <b>Data Received</b> to mark all pending documents in that category as received.
     </div>
     """, unsafe_allow_html=True)
 
@@ -551,6 +601,10 @@ def show_document_collection():
 
     st.divider()
 
+    # ---------------------------------------------------------
+    # CATEGORY SELECTION
+    # ---------------------------------------------------------
+
     st.markdown("""
     <div class="section-banner">
         <b>Step 2:</b> Select a category to view and update the document checklist under that category.
@@ -565,7 +619,6 @@ def show_document_collection():
     )
 
     selected_category_df = checklist_df[checklist_df["Category"] == selected_category].copy()
-
     selected_category_summary = category_summary_df[
         category_summary_df["Category"] == selected_category
     ].iloc[0]
@@ -614,6 +667,10 @@ def show_document_collection():
         key=f"detail_editor_{selected_client}_{selected_ay}_{selected_category}"
     )
 
+    # ---------------------------------------------------------
+    # SAVE CHECKLIST
+    # ---------------------------------------------------------
+
     st.divider()
 
     save_col, refresh_col = st.columns([1, 1])
@@ -657,6 +714,10 @@ def show_document_collection():
     with refresh_col:
         if st.button("🔄 Refresh Checklist", use_container_width=True):
             st.rerun()
+
+    # ---------------------------------------------------------
+    # PENDING DOCUMENT REPORT
+    # ---------------------------------------------------------
 
     st.divider()
 
@@ -712,6 +773,10 @@ def show_document_collection():
         )
     else:
         st.success("✅ No pending documents. All required documents are received / marked as Not Applicable.")
+
+    # ---------------------------------------------------------
+    # FOLLOW-UP MESSAGE
+    # ---------------------------------------------------------
 
     followup_title_col, followup_btn_col = st.columns([9, 1])
 
