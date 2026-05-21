@@ -1,0 +1,119 @@
+{
+    "metadata": {
+        "filingType": "O",
+        "refYearType": "AY",
+        "financialQtr": 0,
+        "refYear": 2026,
+        "formName": "F3CA-3CD"
+    },
+    "data": {
+        "FORM3CA": {
+            "F3CA": {
+                "CreationInfo": {
+                    "SWVersionNo": "R2",
+                    "SWCreatedBy": "TAAS",
+                    "JSONCreatedBy": "TAAS",
+                    "JSONCreationDate": "2026-05-21",
+                    "IntermediaryCity": "Hyderabad"
+                },
+                "Form_Details": {
+                    "FormName": "FORM3CA",
+                    "Description": "Audit report under section 44AB of the Income-tax Act, 1961, in a case where the accounts of the business or profession of a person have been audited under any other law",
+                    "AssessmentYear": "2026",
+                    "SchemaVer": "Ver2.5",
+                    "FormVer": "1.0"
+                },
+                "PartA": {
+                    "AssesseeName": {
+                        "LastName": "Poojamani"
+                    },
+                    "AddressDetail": {
+                        "CountryCode": "91"
+                    },
+                    "PAN": "HSHSH5252F",
+                    "IndirectTaxFlag": "Y",
+                    "PartAStartDate": "2025-04-01",
+                    "PartAEndDate": "2026-03-31",
+                    "AssessmentYear": "2026-27",
+                    "Form3cdIndirectTax": [
+                        {
+                            "IndirectTaxType": "GST",
+                            "RegNo": "hbdbvdhvbksdvk"
+                        }
+                    ],
+                    "Clause": [
+                        {
+                            "ClauseNo": "44ABe"
+                        }
+                    ]
+                },
+                "OtherInformation1": {
+                    "CountryCode": "91",
+                    "IpAddress": "IpAddress",
+                    "Date": "2026-05-21"
+                },
+                "Declaration": {
+                    "Point1": {
+                        "I_We1": "I",
+                        "AssesseeName": {
+                            "LastName": "Poojamani"
+                        },
+                        "AddressDetail": {
+                            "CountryCode": "91"
+                        },
+                        "Me_Us_Ms": "Me",
+                        "Act": "14",
+                        "I_We2": "I",
+                        "My_Our_Their": "My",
+                        "AuditDated": "2026-05-21",
+                        "DateofsigningTaxAuditReport": "2026-05-21",
+                        "PointA": {
+                            "TypeOfAccount": "Profit and loss account",
+                            "AuditStartDate": "2025-04-01",
+                            "AuditEndDate": "2026-03-31"
+                        },
+                        "AuditYearDate": "2026-03-31",
+                        "PointC": "Profit and loss account"
+                    },
+                    "Point3": {
+                        "My_Our1": "My",
+                        "My_Our2": "My",
+                        "Me_Us": "Me"
+                    }
+                },
+                "Form3cdFlags": {
+                    "ChngMethodOfAcc": "N",
+                    "ChngShareSec79": "X",
+                    "IncomeCluaseixofsubsection2": "N",
+                    "IncomeCluasexofsubsection2": "N",
+                    "FurnishStatement": "N",
+                    "SubSec2Sec286": "D",
+                    "ChangeInPartner": "N",
+                    "ChangeNaturBuisnes": "N",
+                    "BookOfAcnt": "N",
+                    "PrftLoassAcnt": "N",
+                    "Sec145": "N",
+                    "Sec145A": "N",
+                    "Sec40A3": "N",
+                    "Sec40A3A": "N",
+                    "SalesTax": "N",
+                    "VATAcnt": "N",
+                    "VATPY": "N",
+                    "Section69D": "N",
+                    "SectionDed": "N",
+                    "ChapXVIIFlag": "N",
+                    "TaxPrescTime": "N",
+                    "Sec201_1A_206_C7": "X",
+                    "SharesOfMem": "N",
+                    "Form3cdSec562viiaFlag": "X",
+                    "Form3cdSec562viibFlag": "X",
+                    "TransferPriceSection92CE": "N",
+                    "IncurredExpenditure": "N",
+                    "ImpermissibleSec96": "N",
+                    "Section36BFlag": "N",
+                    "SubClauseeofClause22": "N"
+                }
+            }
+        }
+    }
+}
