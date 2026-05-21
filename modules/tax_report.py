@@ -1501,6 +1501,406 @@ def get_client_database_row(client_name):
         return {}
 
 
+# ---------------------------------------------------------
+# PHASE 1 AUTO-POPULATION
+# 3CA / 3CB basic report details + Form 3CD Clause 1 to 8
+# Source: Client Management + Tax Audit Applicability
+# ---------------------------------------------------------
+
+def client_row_value(client_row, column, default=""):
+    if not isinstance(client_row, dict):
+        return default
+
+    value = client_row.get(column, default)
+
+    if value is None:
+        return default
+
+    try:
+        if pd.isna(value):
+            return default
+    except Exception:
+        pass
+
+    return str(value).strip()
+
+
+def client_row_first(client_row, columns, default=""):
+    for column in columns:
+        value = client_row_value(client_row, column, "")
+        if value:
+            return value
+    return default
+
+
+def value_is_blank(value):
+    return str(value).strip() in ["", "None", "nan", "NaT"]
+
+
+def set_field_if_blank(fields, key, value):
+    if value_is_blank(value):
+        return
+
+    if key not in fields or value_is_blank(fields.get(key, "")):
+        fields[key] = value
+
+
+def force_set_field(fields, key, value):
+    if not value_is_blank(value):
+        fields[key] = value
+
+
+def build_client_full_address(client_row):
+    parts = [
+        client_row_value(client_row, "Flat / Door / Building"),
+        client_row_value(client_row, "Road / Street / Block / Sector"),
+        client_row_value(client_row, "Area / Locality"),
+        client_row_value(client_row, "Post Office"),
+        client_row_value(client_row, "District / City"),
+        client_row_value(client_row, "State Code"),
+        client_row_value(client_row, "PIN Code"),
+    ]
+
+    return ", ".join([part for part in parts if part])
+
+
+def build_client_country_region(client_row):
+    country_code = client_row_value(client_row, "Country Code", "91")
+
+    if country_code in ["", "91", "91-India", "India"]:
+        return "91-India"
+
+    return country_code
+
+
+def get_client_py_dates(client_row, ay):
+    py_start = client_row_value(client_row, "Previous Year Start Date")
+    py_end = client_row_value(client_row, "Previous Year End Date")
+
+    if py_start and py_end:
+        return py_start, py_end
+
+    try:
+        return get_financial_year_start_end_from_ay(ay)
+    except Exception:
+        return "", ""
+
+
+def get_balance_sheet_year_from_py_end(py_end, ay):
+    py_end = normalize_date_string(py_end, default="")
+
+    if py_end:
+        try:
+            return str(pd.to_datetime(py_end).year)
+        except Exception:
+            pass
+
+    return ay_to_schema_year(ay)
+
+
+def count_branches(branch_details):
+    branch_details = normalize_text(branch_details)
+
+    if not branch_details:
+        return "0"
+
+    # If user entered a number, keep it.
+    try:
+        return str(int(float(branch_details.replace(",", ""))))
+    except Exception:
+        pass
+
+    # Otherwise count non-empty lines / comma separated branch names.
+    lines = [item.strip() for item in re.split(r"[\n,;]+", branch_details) if item.strip()]
+    return str(len(lines)) if lines else "0"
+
+
+def build_report_defaults_from_client_master(audit_form, client_name, ay, client_row):
+    py_start, py_end = get_client_py_dates(client_row, ay)
+
+    legal_name = client_row_first(
+        client_row,
+        ["Client Legal Name", "Last Name / Entity Name", "Client Name"],
+        client_name,
+    )
+
+    first_name = client_row_value(client_row, "First Name")
+    middle_name = client_row_value(client_row, "Middle Name")
+    last_name = client_row_first(
+        client_row,
+        ["Last Name / Entity Name", "Client Legal Name", "Client Name"],
+        client_name,
+    )
+
+    address_full = build_client_full_address(client_row)
+    books_address = client_row_first(
+        client_row,
+        ["Books Head Office Address"],
+        address_full,
+    )
+
+    branch_details = client_row_value(client_row, "Branch Details")
+    audited_under_other_law = client_row_value(client_row, "Audited Under Other Law", "No")
+    law_under_which_audited = client_row_value(client_row, "Law Under Which Audited")
+    statutory_auditor = client_row_value(client_row, "Statutory Auditor / Firm Name")
+    statutory_audit_date = client_row_value(client_row, "Statutory Audit Report Date")
+
+    common = {
+        "Assessee First Name": first_name,
+        "Assessee Middle Name": middle_name,
+        "Assessee Last Name": last_name or legal_name,
+        "Type / Status of Assessee": client_row_value(client_row, "Status of Assessee"),
+        "Assessee Country Region": build_client_country_region(client_row),
+        "Assessee Flat Door Building": client_row_value(client_row, "Flat / Door / Building"),
+        "Assessee Road Street Block Sector": client_row_value(client_row, "Road / Street / Block / Sector"),
+        "Assessee Pincode": client_row_value(client_row, "PIN Code"),
+        "Assessee Post Office": client_row_value(client_row, "Post Office"),
+        "Assessee Area Locality": client_row_value(client_row, "Area / Locality"),
+        "Assessee District": client_row_value(client_row, "District / City"),
+        "Assessee State": client_row_value(client_row, "State Code"),
+        "Assessee PAN": client_row_value(client_row, "PAN").upper(),
+        "Assessee Aadhaar": client_row_value(client_row, "Aadhaar"),
+        "Period Beginning From": py_start,
+        "Period Ending On": py_end,
+    }
+
+    if audit_form == "Form 3CA-3CD":
+        defaults = {
+            **common,
+            "Declaration Type": "I",
+            "Statutory Audit Conducted By": "me",
+            "Statutory Auditor Name": statutory_auditor,
+            "Other Law Name": law_under_which_audited or "Companies Act, 2013",
+            "Other Law Declaration Type": "I",
+            "Audit Report Possessive": "my",
+            "Statutory Audit Report Date": statutory_audit_date,
+            "Audited Statement Type": "Profit and loss account",
+            "Audited Balance Sheet Date": py_end,
+        }
+    elif audit_form == "Form 3CB-3CD":
+        defaults = {
+            **common,
+            "Declaration Type": "I",
+            "Balance Sheet Date": get_balance_sheet_year_from_py_end(py_end, ay),
+            "Statement Type": "Profit and loss account",
+            "Books Head Office Address": books_address,
+            "Books Branches": count_branches(branch_details),
+            "Profit Or Loss": "Profit",
+        }
+    else:
+        defaults = common
+
+    return defaults
+
+
+def apply_report_form_defaults_from_client_master(report_data, audit_form, client_name, ay, overwrite=False):
+    client_row = get_client_database_row(client_name)
+
+    if not client_row:
+        return report_data, False
+
+    report_data.setdefault("report_form", {})
+    report_data["report_form"].setdefault("fields", {})
+
+    fields = report_data["report_form"].get("fields", {})
+
+    defaults = build_report_defaults_from_client_master(
+        audit_form=audit_form,
+        client_name=client_name,
+        ay=ay,
+        client_row=client_row,
+    )
+
+    changed = False
+
+    for key, value in defaults.items():
+        before = fields.get(key, "")
+
+        if overwrite:
+            if not value_is_blank(value) and str(before) != str(value):
+                fields[key] = value
+                changed = True
+        else:
+            if (key not in fields or value_is_blank(fields.get(key, ""))) and not value_is_blank(value):
+                fields[key] = value
+                changed = True
+
+    report_data["report_form"]["fields"] = fields
+
+    return report_data, changed
+
+
+def build_phase1_clause_auto_data(client_name, ay, client_row, applicability_data):
+    py_start, py_end = get_client_py_dates(client_row, ay)
+
+    client_legal_name = client_row_first(
+        client_row,
+        ["Client Legal Name", "Last Name / Entity Name", "Client Name"],
+        client_name,
+    )
+
+    address_full = build_client_full_address(client_row)
+
+    gstin = client_row_value(client_row, "GSTIN")
+    indirect_flag = client_row_value(client_row, "Indirect Tax Applicable", "Yes" if gstin else "No")
+    state_code = client_row_value(client_row, "GST State Code") or client_row_value(client_row, "State Code")
+
+    section_ref = normalize_section_44ab_clause_code(
+        applicability_data.get("section_reference", "")
+    ) or normalize_section_44ab_clause_code(
+        applicability_data.get("reason", "")
+    )
+
+    return {
+        "1": {
+            "fields": {
+                "Name of the assessee": client_legal_name,
+            },
+            "remarks": "Auto-populated from Client Management.",
+        },
+        "2": {
+            "fields": {
+                "Address Line 1": client_row_value(client_row, "Flat / Door / Building"),
+                "Address Line 2": client_row_value(client_row, "Road / Street / Block / Sector"),
+                "Area / Locality": client_row_value(client_row, "Area / Locality"),
+                "Post Office": client_row_value(client_row, "Post Office"),
+                "City / Town / District": client_row_value(client_row, "District / City"),
+                "State Code": client_row_value(client_row, "State Code"),
+                "Country Code": client_row_value(client_row, "Country Code", "91"),
+                "Pincode": client_row_value(client_row, "PIN Code"),
+                "Full Address": address_full,
+            },
+            "remarks": "Auto-populated from Client Management address details.",
+        },
+        "3": {
+            "fields": {
+                "PAN": client_row_value(client_row, "PAN").upper(),
+                "Aadhaar Number, if available": client_row_value(client_row, "Aadhaar"),
+            },
+            "remarks": "Auto-populated from Client Management PAN/Aadhaar details.",
+        },
+        "4": {
+            "fields": {
+                "Whether liable to pay indirect tax": indirect_flag,
+                "Type of indirect tax": "GST" if gstin else "",
+                "State Code": state_code,
+                "Registration number / GSTIN": gstin,
+                "Remarks": "Auto-populated from Client Management GST details.",
+            },
+            "remarks": "Auto-populated from Client Management GST/indirect tax details.",
+        },
+        "5": {
+            "fields": {
+                "Status of assessee": client_row_value(client_row, "Status of Assessee"),
+            },
+            "remarks": "Auto-populated from Client Management status of assessee.",
+        },
+        "6": {
+            "fields": {
+                "Previous year from date": py_start,
+                "Previous year to date": py_end,
+            },
+            "remarks": "Auto-populated from Assessment Year / previous year dates.",
+        },
+        "7": {
+            "fields": {
+                "Assessment year": ay_to_full_string(ay),
+            },
+            "remarks": "Auto-populated from Client Management assessment year.",
+        },
+        "8": {
+            "fields": {
+                "Relevant clause of section 44AB": section_ref,
+                "Section reference as per applicability module": applicability_data.get("section_reference", ""),
+                "Reason for applicability": applicability_data.get("reason", ""),
+                "Whether auto-filled from Tax Audit Applicability module": "Yes",
+            },
+            "remarks": "Auto-populated from Tax Audit Applicability module.",
+        },
+    }
+
+
+def apply_phase1_3cd_clause_auto_population(report_data, client_name, ay, applicability_data, overwrite=True):
+    client_row = get_client_database_row(client_name)
+
+    if not client_row:
+        return report_data, False
+
+    report_data.setdefault("form_3cd", {})
+
+    clause_data_map = build_phase1_clause_auto_data(
+        client_name=client_name,
+        ay=ay,
+        client_row=client_row,
+        applicability_data=applicability_data,
+    )
+
+    changed = False
+
+    for clause_no, auto_data in clause_data_map.items():
+        existing = report_data["form_3cd"].get(clause_no, {})
+        existing_fields = existing.get("fields", {})
+
+        if not isinstance(existing_fields, dict):
+            existing_fields = {}
+
+        auto_fields = auto_data.get("fields", {})
+
+        for key, value in auto_fields.items():
+            before = existing_fields.get(key, "")
+
+            if overwrite:
+                if str(before) != str(value):
+                    existing_fields[key] = value
+                    changed = True
+            else:
+                if (key not in existing_fields or value_is_blank(existing_fields.get(key, ""))) and not value_is_blank(value):
+                    existing_fields[key] = value
+                    changed = True
+
+        current_status = existing.get("status", "Not Filled")
+        new_status = "Filled"
+
+        # If all values are blank, do not mark as filled.
+        if not any(str(v).strip() for v in existing_fields.values()):
+            new_status = current_status
+
+        report_data["form_3cd"][clause_no] = {
+            "title": get_clause_title(clause_no),
+            "utility_sheet": get_clause_sheet(clause_no),
+            "status": new_status,
+            "remarks": auto_data.get("remarks", existing.get("remarks", "")),
+            "fields": existing_fields,
+            "blocks": existing.get("blocks", {}),
+            "schema_based": existing.get("schema_based", False),
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+    return report_data, changed
+
+
+def apply_phase1_auto_population(report_data, audit_form, client_name, ay, applicability_data, overwrite_report=False):
+    report_data, report_changed = apply_report_form_defaults_from_client_master(
+        report_data=report_data,
+        audit_form=audit_form,
+        client_name=client_name,
+        ay=ay,
+        overwrite=overwrite_report,
+    )
+
+    report_data, clause_changed = apply_phase1_3cd_clause_auto_population(
+        report_data=report_data,
+        client_name=client_name,
+        ay=ay,
+        applicability_data=applicability_data,
+        overwrite=True,
+    )
+
+    return report_data, report_changed or clause_changed
+
+
+
 def build_creation_info(fields):
     return {
         "SWVersionNo": "R2",
@@ -2165,9 +2565,20 @@ def show_tax_report():
 
     report_data = load_tax_report(selected_client, selected_ay)
     report_data = apply_applicability_to_report(report_data, applicability_data)
-    save_tax_report(selected_client, selected_ay, report_data)
 
     audit_form = report_data.get("meta", {}).get("audit_form", "Not Applicable")
+
+    report_data, phase1_changed = apply_phase1_auto_population(
+        report_data=report_data,
+        audit_form=audit_form,
+        client_name=selected_client,
+        ay=selected_ay,
+        applicability_data=applicability_data,
+        overwrite_report=False,
+    )
+
+    save_tax_report(selected_client, selected_ay, report_data)
+
     form_code = report_data.get("meta", {}).get("form_code", "")
 
     st.divider()
@@ -2226,6 +2637,25 @@ def show_tax_report():
     report_data["report_form"].setdefault("fields", {})
 
     existing_report_fields = report_data["report_form"].get("fields", {})
+
+    refresh_col1, refresh_col2 = st.columns([2, 8])
+
+    with refresh_col1:
+        if st.button("🔄 Refresh from Client Master", use_container_width=True):
+            report_data, _ = apply_phase1_auto_population(
+                report_data=report_data,
+                audit_form=audit_form,
+                client_name=selected_client,
+                ay=selected_ay,
+                applicability_data=applicability_data,
+                overwrite_report=True,
+            )
+            save_tax_report(selected_client, selected_ay, report_data)
+            st.success("✅ 3CA/3CB basic details and 3CD Clause 1 to 8 refreshed from Client Management.")
+            st.rerun()
+
+    with refresh_col2:
+        st.caption("Auto-fill source: Client Management master data + Tax Audit Applicability. Manual entries are preserved unless you click refresh.")
 
     with st.expander(f"Open {form_code} Report Data Entry", expanded=False):
         updated_report_fields = render_structured_report_fields(

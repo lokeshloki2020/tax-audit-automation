@@ -3,7 +3,7 @@
         "audit_form": "Form 3CB-3CD",
         "form_code": "3CB",
         "created_on": "2026-05-21 17:49:02",
-        "last_updated": "2026-05-21 17:49:07",
+        "last_updated": "2026-05-21 18:34:51",
         "schema_source": "schemas\\schema_3CB.json",
         "schema_root": "FORM3CB",
         "schema_inner_root": "F3CB"
@@ -71,14 +71,111 @@
         "8": {
             "title": "Relevant clause of section 44AB under which audit has been conducted",
             "utility_sheet": "PartA",
-            "status": "In Progress",
-            "remarks": "Auto-filled from Tax Audit Applicability module.",
+            "status": "Filled",
+            "remarks": "Auto-populated from Tax Audit Applicability module.",
             "fields": {
-                "Relevant clause of section 44AB": "Section 44AB(d) read with Section 44ADA(4)",
+                "Relevant clause of section 44AB": "44ABd",
                 "Reason for applicability": "Accounts are not required to be audited under another law. If tax audit applies, Form 3CB-3CD will be applicable. | Declared professional income is lower than 50% of gross receipts and total income exceeds basic exemption limit. Tax audit is applicable under Section 44AB(d). | Since tax audit is applicable, applicable audit report is Form 3CB-3CD.",
-                "Whether auto-filled from Tax Audit Applicability module": "Yes"
+                "Whether auto-filled from Tax Audit Applicability module": "Yes",
+                "Section reference as per applicability module": "Section 44AB(d) read with Section 44ADA(4)"
             },
-            "blocks": {}
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "1": {
+            "title": "Name of the assessee",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "Auto-populated from Client Management.",
+            "fields": {
+                "Name of the assessee": "Abhishek"
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "2": {
+            "title": "Address of the assessee",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "Auto-populated from Client Management address details.",
+            "fields": {
+                "Country Code": "91"
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "3": {
+            "title": "Permanent Account Number or Aadhaar Number",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "Auto-populated from Client Management PAN/Aadhaar details.",
+            "fields": {
+                "PAN": "BHRPL6522E"
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "4": {
+            "title": "Whether the assessee is liable to pay indirect tax like excise duty, service tax, sales tax, GST, customs duty, etc.",
+            "utility_sheet": "PartA / Form3cdIndirectTax",
+            "status": "Filled",
+            "remarks": "Auto-populated from Client Management GST/indirect tax details.",
+            "fields": {
+                "Whether liable to pay indirect tax": "Yes",
+                "Type of indirect tax": "GST",
+                "Registration number / GSTIN": "36DCRPS5473P1ZC",
+                "Remarks": "Auto-populated from Client Management GST details."
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "5": {
+            "title": "Status of the assessee",
+            "utility_sheet": "PartA",
+            "status": "Not Filled",
+            "remarks": "Auto-populated from Client Management status of assessee.",
+            "fields": {},
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "6": {
+            "title": "Previous year",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "Auto-populated from Assessment Year / previous year dates.",
+            "fields": {
+                "Previous year from date": "2025-04-01",
+                "Previous year to date": "2026-03-31"
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
+        },
+        "7": {
+            "title": "Assessment year",
+            "utility_sheet": "PartA",
+            "status": "Filled",
+            "remarks": "Auto-populated from Client Management assessment year.",
+            "fields": {
+                "Assessment year": "2026-27"
+            },
+            "blocks": {},
+            "schema_based": false,
+            "auto_populated_phase": "Phase 1 - Basic Details",
+            "last_updated": "2026-05-21 18:34:51"
         }
     }
 }
