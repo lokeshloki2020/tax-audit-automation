@@ -1,15 +1,12 @@
 import os
-from datetime import date
+import re
+import shutil
 
 import pandas as pd
 import streamlit as st
 
 from utils.common import load_clients, save_clients
 
-
-# ---------------------------------------------------------
-# MASTER COLUMNS REQUIRED FOR PHASE 1 AUTOMATION
-# ---------------------------------------------------------
 
 CLIENT_COLUMNS = [
     "Client Name",
@@ -19,9 +16,10 @@ CLIENT_COLUMNS = [
     "Last Name / Entity Name",
     "PAN",
     "Aadhaar",
+    "Is GST Registered",
     "GSTIN",
-    "Indirect Tax Applicable",
     "GST State Code",
+    "Indirect Tax Applicable",
     "Status of Assessee",
     "Country Code",
     "Flat / Door / Building",
@@ -29,6 +27,7 @@ CLIENT_COLUMNS = [
     "Area / Locality",
     "Post Office",
     "District / City",
+    "State",
     "State Code",
     "PIN Code",
     "AY",
@@ -57,16 +56,18 @@ DEFAULT_VALUES = {
     "Last Name / Entity Name": "",
     "PAN": "",
     "Aadhaar": "",
+    "Is GST Registered": "No",
     "GSTIN": "",
-    "Indirect Tax Applicable": "No",
     "GST State Code": "",
-    "Status of Assessee": "Individual",
+    "Indirect Tax Applicable": "No",
+    "Status of Assessee": "",
     "Country Code": "91",
     "Flat / Door / Building": "",
     "Road / Street / Block / Sector": "",
     "Area / Locality": "",
     "Post Office": "",
     "District / City": "",
+    "State": "",
     "State Code": "",
     "PIN Code": "",
     "AY": "",
@@ -87,89 +88,67 @@ DEFAULT_VALUES = {
 }
 
 
-STATUS_OPTIONS = [
-    "Individual",
-    "HUF",
-    "Firm",
-    "LLP",
-    "Company",
-    "Trust",
-    "AOP",
-    "Local Authority",
-    "Artificial Juridical Person",
-    "Co-operative Society",
-    "Co-operative Bank",
-    "Body of Individuals",
-]
+DOCUMENT_STATUS_OPTIONS = ["Pending", "Partially Received", "Received"]
+AUDIT_STATUS_OPTIONS = ["Pending", "In Progress", "Completed"]
+FILING_STATUS_OPTIONS = ["Not Filed", "Filed"]
 
 
-STATE_CODE_OPTIONS = [
-    "",
-    "01-Andaman and Nicobar Islands",
-    "02-Andhra Pradesh",
-    "03-Arunachal Pradesh",
-    "04-Assam",
-    "05-Bihar",
-    "06-Chandigarh",
-    "07-Dadra and Nagar Haveli",
-    "08-Daman and Diu",
-    "09-Delhi",
-    "10-Goa",
-    "11-Gujarat",
-    "12-Haryana",
-    "13-Himachal Pradesh",
-    "14-Jammu and Kashmir",
-    "15-Karnataka",
-    "16-Kerala",
-    "17-Lakshadweep",
-    "18-Madhya Pradesh",
-    "19-Maharashtra",
-    "20-Manipur",
-    "21-Meghalaya",
-    "22-Mizoram",
-    "23-Nagaland",
-    "24-Odisha",
-    "25-Puducherry",
-    "26-Punjab",
-    "27-Rajasthan",
-    "28-Sikkim",
-    "29-Tamil Nadu",
-    "30-Tripura",
-    "31-Uttar Pradesh",
-    "32-West Bengal",
-    "33-Chhattisgarh",
-    "34-Uttarakhand",
-    "35-Jharkhand",
-    "36-Telangana",
-    "37-Ladakh",
-    "99-Foreign",
-]
-
-
-AUDIT_LAW_OPTIONS = [
-    "",
-    "Companies Act, 2013",
-    "Limited Liability Partnership Act, 2008",
-    "Co-operative Societies Act",
-    "Societies Registration Act",
-    "Trust Act",
-    "Other Law",
-]
-
-
-# ---------------------------------------------------------
-# HELPERS
-# ---------------------------------------------------------
-
-def ensure_client_columns(df):
-    if df is None or df.empty:
-        df = pd.DataFrame(columns=CLIENT_COLUMNS)
-
-    for col in CLIENT_COLUMNS:
-        if col not in df.columns:
-            df[col] = DEFAULT_VALUES.get(col, "")
-
-    return df
+def apply_client_management_style():
+    st.markdown(
+        """
+        <style>
+        .client-summary-card {
+            padding: 18px 20px;
+            border-radius: 18px;
+            background: rgba(30, 41, 59, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.20);
+            margin: 14px 0 22px 0;
+        }
+        .client-summary-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #f8fafc;
+            margin-bottom: 8px;
+        }
+        .client-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .client-summary-item {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+        }
+        .client-summary-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .client-summary-value {
+            font-size: 15px;
+            color: #e5e7eb;
+            font-weight: 700;
+        }
+        .section-card {
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(15, 23, 42, 0.52);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            margin-bottom: 18px;
+        }
+        .danger-card {
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(127, 29, 29, 0.18);
+            border: 1px solid rgba(248, 113, 113, 0.28);
+            margin-bottom: 18px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def safe_str(value):
@@ -185,22 +164,49 @@ def safe_str(value):
     return str(value)
 
 
-def get_state_code(value):
+def safe_key(value):
+    return re.sub(r"[^A-Za-z0-9_]", "_", safe_str(value))
+
+
+def ensure_client_columns(df):
+    if df is None or df.empty:
+        df = pd.DataFrame(columns=CLIENT_COLUMNS)
+
+    for col in CLIENT_COLUMNS:
+        if col not in df.columns:
+            df[col] = DEFAULT_VALUES.get(col, "")
+
+    return df
+
+
+def get_row_value(row, column, default=""):
+    if column not in row:
+        return default
+
+    value = row[column]
+
+    if value is None:
+        return default
+
+    try:
+        if pd.isna(value):
+            return default
+    except Exception:
+        pass
+
+    return value
+
+
+def get_index(options, value):
     value = safe_str(value)
 
-    if "-" in value:
-        return value.split("-")[0].strip()
+    if value in options:
+        return options.index(value)
 
-    return value.strip()
+    return 0
 
 
 def calculate_previous_year_dates(ay):
-    """
-    Converts AY 2026-27 to:
-    Previous Year Start Date: 2025-04-01
-    Previous Year End Date: 2026-03-31
-    """
-
     ay = safe_str(ay).strip()
 
     if not ay:
@@ -222,6 +228,31 @@ def get_client_folder_path(client_name, ay):
     return f"clients/{client_name}/AY {ay}"
 
 
+def clear_global_selected_client_if_deleted(client_name, ay):
+    if (
+        st.session_state.get("global_selected_client") == client_name
+        and safe_str(st.session_state.get("global_selected_ay")) == safe_str(ay)
+    ):
+        st.session_state["global_selected_client"] = None
+        st.session_state["global_selected_ay"] = None
+
+
+def delete_client_record(df, selected_index, delete_folder=False):
+    client_name = safe_str(df.loc[selected_index, "Client Name"])
+    ay = safe_str(df.loc[selected_index, "AY"])
+    client_folder_path = get_client_folder_path(client_name, ay)
+
+    df = df.drop(index=selected_index).reset_index(drop=True)
+    save_clients(df)
+
+    if delete_folder and os.path.exists(client_folder_path):
+        shutil.rmtree(client_folder_path)
+
+    clear_global_selected_client_if_deleted(client_name, ay)
+
+    return client_name, ay
+
+
 def create_client_folders_and_trackers(client_name, ay):
     base_path = get_client_folder_path(client_name, ay)
 
@@ -235,6 +266,7 @@ def create_client_folders_and_trackers(client_name, ay):
         "Final Filing",
         "Tax Report",
         "Tax Audit Applicability",
+        "Audit Procedures",
     ]
 
     for folder in folders:
@@ -313,80 +345,102 @@ def create_client_folders_and_trackers(client_name, ay):
         wp_df["Prepared By"] = ""
         wp_df["Reviewed By"] = ""
         wp_df["Remarks"] = ""
-
         wp_df.to_excel(wp_path, index=False)
 
 
-def get_row_value(row, column, default=""):
-    if column not in row:
-        return default
+@st.dialog("Confirm Delete Client")
+def confirm_delete_client_dialog(df, selected_index, selected_client, selected_ay):
+    st.markdown(f"**Client:** {selected_client}")
+    st.markdown(f"**Assessment Year:** {selected_ay}")
 
-    value = row[column]
+    delete_folder = st.checkbox(
+        "Delete client folder also",
+        value=False,
+        key=f"dialog_delete_folder_{safe_key(selected_client)}_{safe_key(selected_ay)}",
+    )
 
-    if value is None:
-        return default
+    if delete_folder:
+        st.warning("Client record and saved files for this AY will be deleted.")
 
-    try:
-        if pd.isna(value):
-            return default
-    except Exception:
-        pass
+    c1, c2 = st.columns(2)
 
-    return value
+    with c1:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
+    with c2:
+        if st.button("Confirm Delete", type="primary", use_container_width=True):
+            deleted_client, deleted_ay = delete_client_record(
+                df=df,
+                selected_index=selected_index,
+                delete_folder=delete_folder,
+            )
+
+            st.session_state["global_selected_client"] = None
+            st.session_state["global_selected_ay"] = None
+
+            if "client_management_selected_client" in st.session_state:
+                st.session_state["client_management_selected_client"] = "Select Client"
+
+            st.success(f"Deleted: {deleted_client} | AY: {deleted_ay}")
+            st.rerun()
 
 
-# ---------------------------------------------------------
-# MAIN MODULE
-# ---------------------------------------------------------
+def show_client_summary(row, selected_client, selected_ay):
+    pan = safe_str(get_row_value(row, "PAN", ""))
+
+    st.markdown(
+        f"""
+        <div class="client-summary-card">
+            <div class="client-summary-title">{selected_client}</div>
+            <div class="client-summary-grid">
+                <div class="client-summary-item">
+                    <div class="client-summary-label">PAN</div>
+                    <div class="client-summary-value">{pan or "-"}</div>
+                </div>
+                <div class="client-summary-item">
+                    <div class="client-summary-label">Assessment Year</div>
+                    <div class="client-summary-value">{selected_ay or "-"}</div>
+                </div>
+                <div class="client-summary-item">
+                    <div class="client-summary-label">Audit Status</div>
+                    <div class="client-summary-value">{safe_str(get_row_value(row, "Audit Status", "Pending"))}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def show_client_management():
+    apply_client_management_style()
+
     st.subheader("👥 Client Management")
 
     df = ensure_client_columns(load_clients())
 
-    # ---------------------------------------------------------
-    # ADD NEW CLIENT - SIDEBAR
-    # ---------------------------------------------------------
-
     st.sidebar.header("➕ Add New Client")
 
-    with st.sidebar.form("add_client_form", clear_on_submit=False):
-        client_name = st.text_input("Client Display Name")
-        client_legal_name = st.text_input("Client Legal Name / Entity Name")
-        pan = st.text_input("PAN")
-        ay = st.text_input("Assessment Year", placeholder="Example: 2026-27")
-        assigned_staff = st.text_input("Assigned Staff")
+    client_name = st.sidebar.text_input("Client Name", key="add_client_name")
+    pan = st.sidebar.text_input("PAN Number", key="add_client_pan")
+    ay = st.sidebar.text_input("Assessment Year", placeholder="Example: 2026-27", key="add_client_ay")
 
-        status_of_assessee = st.selectbox(
-            "Status of Assessee",
-            STATUS_OPTIONS,
-            index=0,
-        )
-
-        gstin = st.text_input("GSTIN")
-        indirect_tax_applicable = st.selectbox(
-            "Indirect Tax Applicable",
-            ["No", "Yes"],
-            index=1 if gstin else 0,
-        )
-
-        audited_under_other_law = st.selectbox(
-            "Audited Under Other Law?",
-            ["No", "Yes"],
-            index=0,
-        )
-
-        add_client_btn = st.form_submit_button("➕ Add Client")
+    add_client_btn = st.sidebar.button(
+        "➕ Add Client",
+        key="add_client_button",
+        use_container_width=True,
+    )
 
     if add_client_btn:
         if client_name.strip() == "" or pan.strip() == "" or ay.strip() == "":
-            st.sidebar.error("Client Name, PAN and Assessment Year are mandatory.")
+            st.sidebar.error("Client Name, PAN Number and Assessment Year are mandatory.")
         else:
             py_start, py_end = calculate_previous_year_dates(ay)
 
             existing_match = df[
-                (df["Client Name"].astype(str).str.lower() == client_name.strip().lower()) &
-                (df["AY"].astype(str) == ay.strip())
+                (df["Client Name"].astype(str).str.lower() == client_name.strip().lower())
+                & (df["AY"].astype(str) == ay.strip())
             ]
 
             if len(existing_match) > 0:
@@ -396,17 +450,12 @@ def show_client_management():
 
                 new_client.update({
                     "Client Name": client_name.strip(),
-                    "Client Legal Name": client_legal_name.strip() or client_name.strip(),
-                    "Last Name / Entity Name": client_legal_name.strip() or client_name.strip(),
+                    "Client Legal Name": client_name.strip(),
+                    "Last Name / Entity Name": client_name.strip(),
                     "PAN": pan.strip().upper(),
-                    "GSTIN": gstin.strip().upper(),
-                    "Indirect Tax Applicable": indirect_tax_applicable,
-                    "Status of Assessee": status_of_assessee,
                     "AY": ay.strip(),
                     "Previous Year Start Date": py_start,
                     "Previous Year End Date": py_end,
-                    "Audited Under Other Law": audited_under_other_law,
-                    "Assigned Staff": assigned_staff.strip(),
                     "Document Status": "Pending",
                     "Audit Status": "Pending",
                     "3CD/3CA Filing Status": "Not Filed",
@@ -416,24 +465,23 @@ def show_client_management():
 
                 df = pd.concat([df, pd.DataFrame([new_client])], ignore_index=True)
                 save_clients(df)
-
                 create_client_folders_and_trackers(client_name.strip(), ay.strip())
 
-                st.sidebar.success("✅ Client added successfully.")
+                st.sidebar.success("Client added successfully.")
                 st.rerun()
-
-    # ---------------------------------------------------------
-    # CLIENT SELECTION
-    # ---------------------------------------------------------
 
     df = ensure_client_columns(load_clients())
 
     if df.empty or "Client Name" not in df.columns:
-        st.info("No clients added yet. Add a new client from the sidebar.")
+        st.info("No clients added yet.")
         return
 
     client_list = sorted(df["Client Name"].dropna().astype(str).unique().tolist())
     client_options = ["Select Client"] + client_list
+
+    if "client_management_selected_client" in st.session_state:
+        if st.session_state["client_management_selected_client"] not in client_options:
+            st.session_state["client_management_selected_client"] = "Select Client"
 
     selected_client = st.selectbox(
         "Search / Select Client",
@@ -443,329 +491,106 @@ def show_client_management():
         key="client_management_selected_client",
     )
 
+    selected_record_ay = None
+    selected_index = None
+
     if selected_client == "Select Client":
-        st.info("Showing all clients. Select a client to view or edit master details.")
         filtered_df = df.copy()
         download_file_name = "all_clients_data.csv"
     else:
-        filtered_df = df[df["Client Name"].astype(str) == selected_client].copy()
+        client_records = df[df["Client Name"].astype(str) == selected_client].copy()
+
+        if client_records.empty:
+            st.warning("Selected client record not found.")
+            return
+
+        ay_options = client_records["AY"].dropna().astype(str).unique().tolist()
+
+        if len(ay_options) > 1:
+            selected_record_ay = st.selectbox(
+                "Select Assessment Year",
+                ay_options,
+                index=0,
+                key="client_management_selected_ay",
+            )
+            filtered_df = client_records[client_records["AY"].astype(str) == selected_record_ay].copy()
+        else:
+            selected_record_ay = safe_str(client_records.iloc[0]["AY"])
+            filtered_df = client_records.copy()
+
+        selected_index = filtered_df.index[0]
         download_file_name = f"{selected_client}_client_data.csv"
 
-    # ---------------------------------------------------------
-    # SELECTED CLIENT MASTER EDIT
-    # ---------------------------------------------------------
-
-    if selected_client != "Select Client" and not filtered_df.empty:
-        selected_index = filtered_df.index[0]
+    if selected_client != "Select Client" and selected_index is not None and not filtered_df.empty:
         row = df.loc[selected_index]
 
-        st.markdown("## 🧾 Phase 1 Master Data for 3CA / 3CB / 3CD Clause 1 to 8")
+        show_client_summary(row, selected_client, selected_record_ay)
 
-        with st.form("client_master_edit_form"):
-            st.write("### 1. Basic Details")
+        st.markdown("## 📌 Filing Status")
 
-            b1, b2, b3 = st.columns(3)
+        with st.form("client_filing_status_form"):
+            c1, c2, c3, c4 = st.columns(4)
 
-            with b1:
-                edit_client_name = st.text_input(
-                    "Client Display Name",
-                    value=safe_str(get_row_value(row, "Client Name")),
-                )
-
-                edit_client_legal_name = st.text_input(
-                    "Client Legal Name",
-                    value=safe_str(get_row_value(row, "Client Legal Name")),
-                )
-
-                edit_pan = st.text_input(
-                    "PAN",
-                    value=safe_str(get_row_value(row, "PAN")),
-                )
-
-            with b2:
-                edit_first_name = st.text_input(
-                    "First Name",
-                    value=safe_str(get_row_value(row, "First Name")),
-                )
-
-                edit_middle_name = st.text_input(
-                    "Middle Name",
-                    value=safe_str(get_row_value(row, "Middle Name")),
-                )
-
-                edit_last_name = st.text_input(
-                    "Last Name / Entity Name",
-                    value=safe_str(get_row_value(row, "Last Name / Entity Name")),
-                )
-
-            with b3:
-                edit_aadhaar = st.text_input(
-                    "Aadhaar, if available",
-                    value=safe_str(get_row_value(row, "Aadhaar")),
-                )
-
-                current_status = safe_str(get_row_value(row, "Status of Assessee", "Individual"))
-
-                edit_status = st.selectbox(
-                    "Status of Assessee",
-                    STATUS_OPTIONS,
-                    index=STATUS_OPTIONS.index(current_status) if current_status in STATUS_OPTIONS else 0,
-                )
-
-                edit_assigned_staff = st.text_input(
-                    "Assigned Staff",
-                    value=safe_str(get_row_value(row, "Assigned Staff")),
-                )
-
-            st.write("### 2. Address Details")
-
-            a1, a2, a3 = st.columns(3)
-
-            with a1:
-                edit_country_code = st.text_input(
-                    "Country Code",
-                    value=safe_str(get_row_value(row, "Country Code", "91")),
-                )
-
-                edit_flat = st.text_input(
-                    "Flat / Door / Building",
-                    value=safe_str(get_row_value(row, "Flat / Door / Building")),
-                )
-
-                edit_road = st.text_input(
-                    "Road / Street / Block / Sector",
-                    value=safe_str(get_row_value(row, "Road / Street / Block / Sector")),
-                )
-
-            with a2:
-                edit_area = st.text_input(
-                    "Area / Locality",
-                    value=safe_str(get_row_value(row, "Area / Locality")),
-                )
-
-                edit_post_office = st.text_input(
-                    "Post Office",
-                    value=safe_str(get_row_value(row, "Post Office")),
-                )
-
-                edit_district = st.text_input(
-                    "District / City",
-                    value=safe_str(get_row_value(row, "District / City")),
-                )
-
-            with a3:
-                current_state_code = safe_str(get_row_value(row, "State Code"))
-
-                edit_state_code_display = st.selectbox(
-                    "State Code",
-                    STATE_CODE_OPTIONS,
-                    index=STATE_CODE_OPTIONS.index(current_state_code)
-                    if current_state_code in STATE_CODE_OPTIONS else 0,
-                )
-
-                edit_pin = st.text_input(
-                    "PIN Code",
-                    value=safe_str(get_row_value(row, "PIN Code")),
-                )
-
-            st.write("### 3. GST / Indirect Tax Details")
-
-            g1, g2, g3 = st.columns(3)
-
-            with g1:
-                edit_gstin = st.text_input(
-                    "GSTIN",
-                    value=safe_str(get_row_value(row, "GSTIN")),
-                )
-
-            with g2:
-                current_indirect = safe_str(get_row_value(row, "Indirect Tax Applicable", "No"))
-
-                edit_indirect = st.selectbox(
-                    "Indirect Tax Applicable",
-                    ["No", "Yes"],
-                    index=["No", "Yes"].index(current_indirect) if current_indirect in ["No", "Yes"] else 0,
-                )
-
-            with g3:
-                current_gst_state = safe_str(get_row_value(row, "GST State Code"))
-
-                edit_gst_state_display = st.selectbox(
-                    "GST State Code",
-                    STATE_CODE_OPTIONS,
-                    index=STATE_CODE_OPTIONS.index(current_gst_state)
-                    if current_gst_state in STATE_CODE_OPTIONS else 0,
-                )
-
-            st.write("### 4. Assessment Year / Previous Year")
-
-            y1, y2, y3 = st.columns(3)
-
-            with y1:
-                edit_ay = st.text_input(
-                    "Assessment Year",
-                    value=safe_str(get_row_value(row, "AY")),
-                )
-
-            auto_py_start, auto_py_end = calculate_previous_year_dates(edit_ay)
-
-            with y2:
-                edit_py_start = st.text_input(
-                    "Previous Year Start Date",
-                    value=safe_str(get_row_value(row, "Previous Year Start Date")) or auto_py_start,
-                )
-
-            with y3:
-                edit_py_end = st.text_input(
-                    "Previous Year End Date",
-                    value=safe_str(get_row_value(row, "Previous Year End Date")) or auto_py_end,
-                )
-
-            st.write("### 5. 3CA / 3CB Report Master Details")
-
-            r1, r2, r3 = st.columns(3)
-
-            with r1:
-                current_audited_other = safe_str(get_row_value(row, "Audited Under Other Law", "No"))
-
-                edit_audited_other_law = st.selectbox(
-                    "Audited Under Other Law?",
-                    ["No", "Yes"],
-                    index=["No", "Yes"].index(current_audited_other)
-                    if current_audited_other in ["No", "Yes"] else 0,
-                )
-
-            with r2:
-                current_law = safe_str(get_row_value(row, "Law Under Which Audited"))
-
-                edit_law = st.selectbox(
-                    "Law Under Which Audited",
-                    AUDIT_LAW_OPTIONS,
-                    index=AUDIT_LAW_OPTIONS.index(current_law) if current_law in AUDIT_LAW_OPTIONS else 0,
-                )
-
-            with r3:
-                edit_stat_auditor = st.text_input(
-                    "Statutory Auditor / Firm Name",
-                    value=safe_str(get_row_value(row, "Statutory Auditor / Firm Name")),
-                )
-
-            r4, r5 = st.columns(2)
-
-            with r4:
-                edit_stat_audit_date = st.text_input(
-                    "Statutory Audit Report Date",
-                    value=safe_str(get_row_value(row, "Statutory Audit Report Date")),
-                    placeholder="YYYY-MM-DD",
-                )
-
-            with r5:
-                edit_books_head_office = st.text_input(
-                    "Books Head Office Address",
-                    value=safe_str(get_row_value(row, "Books Head Office Address")),
-                )
-
-            edit_branch_details = st.text_area(
-                "Branch Details",
-                value=safe_str(get_row_value(row, "Branch Details")),
-                height=80,
-            )
-
-            st.write("### 6. Filing Status")
-
-            s1, s2, s3, s4 = st.columns(4)
-
-            with s1:
+            with c1:
                 edit_document_status = st.selectbox(
                     "Document Status",
-                    ["Pending", "Partially Received", "Received"],
-                    index=["Pending", "Partially Received", "Received"].index(
-                        safe_str(get_row_value(row, "Document Status", "Pending"))
-                    )
-                    if safe_str(get_row_value(row, "Document Status", "Pending")) in ["Pending", "Partially Received", "Received"]
-                    else 0,
+                    DOCUMENT_STATUS_OPTIONS,
+                    index=get_index(DOCUMENT_STATUS_OPTIONS, get_row_value(row, "Document Status", "Pending")),
                 )
 
-            with s2:
+            with c2:
                 edit_audit_status = st.selectbox(
                     "Audit Status",
-                    ["Pending", "In Progress", "Completed"],
-                    index=["Pending", "In Progress", "Completed"].index(
-                        safe_str(get_row_value(row, "Audit Status", "Pending"))
-                    )
-                    if safe_str(get_row_value(row, "Audit Status", "Pending")) in ["Pending", "In Progress", "Completed"]
-                    else 0,
+                    AUDIT_STATUS_OPTIONS,
+                    index=get_index(AUDIT_STATUS_OPTIONS, get_row_value(row, "Audit Status", "Pending")),
                 )
 
-            with s3:
+            with c3:
                 edit_tax_audit_filing = st.selectbox(
                     "3CD/3CA Filing Status",
-                    ["Not Filed", "Filed"],
-                    index=["Not Filed", "Filed"].index(
-                        safe_str(get_row_value(row, "3CD/3CA Filing Status", "Not Filed"))
-                    )
-                    if safe_str(get_row_value(row, "3CD/3CA Filing Status", "Not Filed")) in ["Not Filed", "Filed"]
-                    else 0,
+                    FILING_STATUS_OPTIONS,
+                    index=get_index(FILING_STATUS_OPTIONS, get_row_value(row, "3CD/3CA Filing Status", "Not Filed")),
                 )
 
-            with s4:
+            with c4:
                 edit_itr_status = st.selectbox(
                     "ITR Filing Status",
-                    ["Not Filed", "Filed"],
-                    index=["Not Filed", "Filed"].index(
-                        safe_str(get_row_value(row, "ITR Filing Status", "Not Filed"))
-                    )
-                    if safe_str(get_row_value(row, "ITR Filing Status", "Not Filed")) in ["Not Filed", "Filed"]
-                    else 0,
+                    FILING_STATUS_OPTIONS,
+                    index=get_index(FILING_STATUS_OPTIONS, get_row_value(row, "ITR Filing Status", "Not Filed")),
                 )
 
-            save_master_btn = st.form_submit_button("💾 Save Client Master Data")
+            save_status_btn = st.form_submit_button("💾 Save Filing Status")
 
-        if save_master_btn:
-            final_state_code = get_state_code(edit_state_code_display)
-            final_gst_state_code = get_state_code(edit_gst_state_display)
-
-            df.loc[selected_index, "Client Name"] = edit_client_name.strip()
-            df.loc[selected_index, "Client Legal Name"] = edit_client_legal_name.strip() or edit_client_name.strip()
-            df.loc[selected_index, "First Name"] = edit_first_name.strip()
-            df.loc[selected_index, "Middle Name"] = edit_middle_name.strip()
-            df.loc[selected_index, "Last Name / Entity Name"] = edit_last_name.strip() or edit_client_legal_name.strip() or edit_client_name.strip()
-            df.loc[selected_index, "PAN"] = edit_pan.strip().upper()
-            df.loc[selected_index, "Aadhaar"] = edit_aadhaar.strip()
-            df.loc[selected_index, "GSTIN"] = edit_gstin.strip().upper()
-            df.loc[selected_index, "Indirect Tax Applicable"] = edit_indirect
-            df.loc[selected_index, "GST State Code"] = final_gst_state_code
-            df.loc[selected_index, "Status of Assessee"] = edit_status
-            df.loc[selected_index, "Country Code"] = edit_country_code.strip() or "91"
-            df.loc[selected_index, "Flat / Door / Building"] = edit_flat.strip()
-            df.loc[selected_index, "Road / Street / Block / Sector"] = edit_road.strip()
-            df.loc[selected_index, "Area / Locality"] = edit_area.strip()
-            df.loc[selected_index, "Post Office"] = edit_post_office.strip()
-            df.loc[selected_index, "District / City"] = edit_district.strip()
-            df.loc[selected_index, "State Code"] = final_state_code
-            df.loc[selected_index, "PIN Code"] = edit_pin.strip()
-            df.loc[selected_index, "AY"] = edit_ay.strip()
-            df.loc[selected_index, "Previous Year Start Date"] = edit_py_start.strip()
-            df.loc[selected_index, "Previous Year End Date"] = edit_py_end.strip()
-            df.loc[selected_index, "Audited Under Other Law"] = edit_audited_other_law
-            df.loc[selected_index, "Law Under Which Audited"] = edit_law
-            df.loc[selected_index, "Statutory Auditor / Firm Name"] = edit_stat_auditor.strip()
-            df.loc[selected_index, "Statutory Audit Report Date"] = edit_stat_audit_date.strip()
-            df.loc[selected_index, "Books Head Office Address"] = edit_books_head_office.strip()
-            df.loc[selected_index, "Branch Details"] = edit_branch_details.strip()
+        if save_status_btn:
             df.loc[selected_index, "Document Status"] = edit_document_status
             df.loc[selected_index, "Audit Status"] = edit_audit_status
             df.loc[selected_index, "3CD/3CA Filing Status"] = edit_tax_audit_filing
             df.loc[selected_index, "ITR Filing Status"] = edit_itr_status
-            df.loc[selected_index, "Assigned Staff"] = edit_assigned_staff.strip()
 
             save_clients(df)
-            st.success("✅ Client master data saved successfully.")
+            st.success("Filing status saved successfully.")
             st.rerun()
 
-    # ---------------------------------------------------------
-    # CLIENT DATABASE SUMMARY
-    # ---------------------------------------------------------
+        st.divider()
+
+        delete_col1, delete_col2 = st.columns([3, 1])
+
+        with delete_col1:
+            st.markdown("## 🗑️ Delete Client")
+
+        with delete_col2:
+            if st.button(
+                "Delete Client",
+                type="primary",
+                key=f"open_delete_dialog_{safe_key(selected_client)}_{safe_key(selected_record_ay)}",
+                use_container_width=True,
+            ):
+                confirm_delete_client_dialog(
+                    df=df,
+                    selected_index=selected_index,
+                    selected_client=selected_client,
+                    selected_ay=selected_record_ay,
+                )
 
     st.divider()
 
@@ -785,18 +610,14 @@ def show_client_management():
 
     display_columns = [
         "Client Name",
-        "Client Legal Name",
         "PAN",
-        "GSTIN",
-        "Status of Assessee",
         "AY",
-        "Audited Under Other Law",
+        "Previous Year Start Date",
+        "Previous Year End Date",
         "Document Status",
         "Audit Status",
         "3CD/3CA Filing Status",
         "ITR Filing Status",
-        "Assigned Staff",
-        "Checklist Completion %",
     ]
 
     display_columns = [col for col in display_columns if col in filtered_df.columns]
